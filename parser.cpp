@@ -122,3 +122,29 @@ def TIMEOUT(*_): # TODO: FIXME: allow something like LOOPTIME_PAST
 // para que objeto.dbg() vire objeto.__doc__ e dbg(mensagem) vire __doc__
 // TODO: FIXME: implementar isso no tokenizer - qualquer objeto.objeto.objeto.dbg(str) virará pass
 #define dbg(fmt, ...)  __doc__
+
+
+
+#if EXTRACT_LOG
+# define dbg(fmt, ...)  LOGFMTX§__COUNTER__§__FILE__§__LINE__§0§fmt§XTMFGOL
+# define log(fmt, ...)  LOGFMTX§__COUNTER__§__FILE__§__LINE__§1§fmt§XTMFGOL
+# define warn(fmt, ...) LOGFMTX§__COUNTER__§__FILE__§__LINE__§2§fmt§XTMFGOL
+# define err(fmt, ...)  LOGFMTX§__COUNTER__§__FILE__§__LINE__§3§fmt§XTMFGOL
+#else
+#    if OUTPUT
+#       define dbg( fmt, ...) print((_COLOR_CYAN_BOLD __FILE__ ':' + str(__LINE__) + _COLOR_YELLOW_BOLD ' %s ' _COLOR_GREEN_BOLD  fmt _COLOR_RESET) % (TASK.logName, __VA_ARGS__))
+#       define log( fmt, ...) print((_COLOR_CYAN_BOLD __FILE__ ':' + str(__LINE__) + _COLOR_YELLOW_BOLD ' %s ' _COLOR_GREEN_BOLD  fmt _COLOR_RESET) % (TASK.logName, __VA_ARGS__))
+#       define warn(fmt, ...) print((_COLOR_CYAN_BOLD __FILE__ ':' + str(__LINE__) + _COLOR_YELLOW_BOLD ' %s ' _COLOR_PURPLE_BOLD fmt _COLOR_RESET) % (TASK.logName, __VA_ARGS__))
+#       define err( fmt, ...) print((_COLOR_CYAN_BOLD __FILE__ ':' + str(__LINE__) + _COLOR_YELLOW_BOLD ' %s ' _COLOR_RED_BOLD    fmt _COLOR_RESET) % (TASK.logName, __VA_ARGS__))
+#    else
+#       define dbg(fmt, ...)  _LOG(__COUNTER__, ##__VA_ARGS__)
+#       define log(fmt, ...)  _LOG(__COUNTER__, ##__VA_ARGS__)
+#       define warn(fmt, ...) _LOG(__COUNTER__, ##__VA_ARGS__)
+#       define err(fmt, ...)  _LOG(__COUNTER__, ##__VA_ARGS__)
+#    endif
+#endif
+
+#if !DEBUG
+# undef dbg
+# define dbg(fmt, ...) PASS
+#endif
