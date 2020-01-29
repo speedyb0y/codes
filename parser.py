@@ -1,7 +1,15 @@
+#!/usr/bin/python
+
 import sys
 import os
 import tokenize
 import io
+
+def log(fmt, *values):
+    print(f'{LOG_COLOR}{fmt}{COLOR_RESET}' % values)
+
+def err(fmt, *values):
+    print(f'{ERR_COLOR}{fmt}{COLOR_RESET}' % values)
 
 TOKEN_ENCODING = tokenize.ENCODING
 TOKEN_ERROR    = tokenize.ERRORTOKEN
@@ -21,69 +29,164 @@ tokensNames = {
     TOKEN_STRING  : 'STRING',
     }
 
-BUILTINS = (
-    'and',
-    'as',
-    'assert',
-    'async',
-    'await',
-    'break',
-    'class',
-    'def',
-    'del',
-    'dir',
-    'elif',
-    'else',
-    'except',
-    'for',
-    'from',
-    'global',
-    'has',
+KEYWORDS = 'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'has', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield'
+
+OPERATORS = '[', ']', '(', ')', '{', '}', '+', '-', '/', '*', '%', '&', '|', '^', '~', '.', ':', ','
+
+BUILTIN_TYPES = 'bool', 'bytearray', 'bytes', 'dict', 'float', 'int', 'list', 'object', 'set', 'str', 'tuple'
+
+BUILTIN_CONSTANTS = (
+    'None',
+    'False',
+    'True',
+    'BaseException',
+    'Exception',
+    'TimeoutError',
+    'KeyError',
+    )
+
+BUILTIN_FUNCTIONS = (
+    '__import__',
     'hasattr',
-    'if',
-    'import',
-    'in',
-    'input',
-    'is',
+    'abs',
     'isclass',
     'isinstance',
     'issubclass',
     'locals',
-    # 'next',
-    'None',
-    'not',
-    'or',
-    'pass',
+    'all',
+    'any',
+    'ascii',
+    'bin',
+    'breakpoint',
+    'callable',
+    'chr',
+    'classmethod',
+    'compile',
+    'complex',
+    'delattr',
+    'dir',
+    'divmod',
+    'enumerate',
+    'eval',
+    'exec',
+    'filter',
+    'format',
+    'frozenset',
+    'getattr',
+    'globals',
+    'hasattr',
+    'hash',
+    'help',
+    'hex',
+    'id',
+    'input',
+    'isinstance',
+    'issubclass',
+    'iter',
+    'len',
+    'locals',
+    'map',
+    'max',
+    'memoryview',
+    'min',
+    'next',
+    'oct',
+    'open',
+    'ord',
+    'pow',
     'print',
-    'raise',
-    'return',
-    'True',
-    'while',
-    'yield',
+    'property',
+    'range',
+    'repr',
+    'reversed',
+    'round',
+    'setattr',
+    'slice',
+    'sorted',
+    'staticmethod',
+    'sum',
+    'super',
+    'type',
+    'vars',
+    'zip',
     )
 
+MODULES = (
+    'os',
+    'sys',
+    'random',
+    'time',
+    'asyncio',
+    'aiohttp',
+    'websockets',
+    )
+
+assert all(((len(set(a) & set(b)) == 0) or print(set(a) & set(b)))
+    for a in (KEYWORDS, OPERATORS, BUILTIN_FUNCTIONS, BUILTIN_TYPES, BUILTIN_CONSTANTS, MODULES)
+    for b in (KEYWORDS, OPERATORS, BUILTIN_FUNCTIONS, BUILTIN_TYPES, BUILTIN_CONSTANTS, MODULES)
+        if a is not b)
+
+# TODO: FIXME: erro se IDENTIFIER seguido de um nome, que não seja @ ou $, e o último não tenha sido $ ou @
+
+# não podem começar um identifier
+# então não podem vir antes do . e nem serem considerados palavras
+# '0123456789'
+
+
+# certos builtins podem começar a palavra, mas não continuar
+COLOR_BLUE        = '\x1b[34m'
+COLOR_CYAN        = '\x1b[36m'
+COLOR_CYAN_BOLD   = '\x1b[36m\x1b[1m'
+COLOR_WHITE_BOLD  = '\x1b[37m\x1b[1m'
+COLOR_YELLOW_BOLD = '\x1b[33m\x1b[1m'
+COLOR_GREEN_BOLD  = '\x1b[32m\x1b[1m'
+COLOR_RED_BOLD    = '\x1b[31m\x1b[1m'
+COLOR_PURPLE_BOLD = '\x1b[35m\x1b[1m'
+COLOR_RESET       = '\x1b\x5b\x30\x6d'
+
+DBG_COLOR  = COLOR_GREEN_BOLD
+LOG_COLOR  = COLOR_GREEN_BOLD
+WARN_COLOR = COLOR_PURPLE_BOLD
+ERR_COLOR  = COLOR_RED_BOLD
 
 definitions = {
     '$': 'self',
     '$$': 'self.parent',
     '@': 'self._',
     '@@': 'self._._',
-    'COLOR_BLUE'        : '\x1b[34m',
-    'COLOR_CYAN'        : '\x1b[36m',
-    'COLOR_CYAN_BOLD'   : '\x1b[36m\x1b[1m',
-    'COLOR_WHITE_BOLD'  : '\x1b[37m\x1b[1m',
-    'COLOR_YELLOW_BOLD' : '\x1b[33m\x1b[1m',
-    'COLOR_GREEN_BOLD'  : '\x1b[32m\x1b[1m',
-    'COLOR_RED_BOLD'    : '\x1b[31m\x1b[1m',
-    'COLOR_PURPLE_BOLD' : '\x1b[35m\x1b[1m',
-    'COLOR_RESET'       : '\x1b\x5b\x30\x6d',
+    'COLOR_BLUE'        : COLOR_BLUE,
+    'COLOR_CYAN'        : COLOR_CYAN,
+    'COLOR_CYAN_BOLD'   : COLOR_CYAN_BOLD,
+    'COLOR_WHITE_BOLD'  : COLOR_WHITE_BOLD,
+    'COLOR_YELLOW_BOLD' : COLOR_YELLOW_BOLD,
+    'COLOR_GREEN_BOLD'  : COLOR_GREEN_BOLD,
+    'COLOR_RED_BOLD'    : COLOR_RED_BOLD,
+    'COLOR_PURPLE_BOLD' : COLOR_PURPLE_BOLD,
+    'COLOR_RESET'       : COLOR_RESET,
+    'DBG_COLOR'  : COLOR_GREEN_BOLD,
+    'LOG_COLOR'  : COLOR_GREEN_BOLD,
+    'WARN_COLOR' : COLOR_PURPLE_BOLD,
+    'ERR_COLOR'  : COLOR_RED_BOLD,
     }
 
-outPath = sys.argv[1]
+# SCRIPT OUTPUT SOURCE_0 SOURCE_1 ... SOURCE_N
+assert len(sys.argv) >= 3
+
+# Não pode ter duplicados
+# Nenhum pode ser o script em si
+# Output não pode ser um source
+assert len(sys.argv) == len(set(sys.argv))
+
+outputPath, sourcePaths = sys.argv[1], sys.argv[2:]
 
 tokens = []
 
-for fpath in sys.argv[2:]:
+def PRINT(msg):
+    print(f'%5d %-90s %-15s %-100s %s' % (thisPos[0], msg, *P, ('' if identifier is None else identifier)))
+
+for sourcePath in sourcePaths:
+
+    log(f'PROCESSING SOURCE {COLOR_CYAN}%s' % sourcePath)
 
     lastCode = None
     lastStr = None
@@ -92,15 +195,18 @@ for fpath in sys.argv[2:]:
     MUSTBECLASS = None
     MUSTBEINSTANCE = None
 
-    def PRINT(*msg):
-        print('%5d %-90s %-15s %-100s %s' % (thisPos[0], msg[0], *P, ('' if identifier is None else identifier)))
+    try:
+        source = open(sourcePath, 'r').read().encode('utf-8')
+    except FileNotFoundError:
+        err('FAILED TO LOAD FILE - FILE NOT FOUND')
+        exit(1)
 
     # SELFENIZE_ALLOWED = True
-    for thisCode, thisStr, thisPos, *_ in tokenize.tokenize(io.BytesIO(open(fpath, 'r').read().encode('utf-8')).readline):
+    for thisCode, thisStr, thisPos, *_ in tokenize.tokenize(io.BytesIO(source).readline):
 
         try:
             tokenThisName = tokensNames[thisCode]
-        except:
+        except KeyError:
             tokenThisName = '?'
 
         P = tokenThisName, str([thisStr])[1:-1]
@@ -173,10 +279,15 @@ for fpath in sys.argv[2:]:
 
         lastCode, lastStr = thisCode, thisStr
 
+    source = None
+
+tokens, tokensN = tokenize.untokenize(tokens),
+
+log(f'OUTPUTING %d TOKENS SIZE %d TO {COLOR_CYAN}%s' % (tokensN, len(tokens), outputPath))
 # TODO: FIXME: autoexecuta o CPP
-open(outPath, 'xb').write(tokenize.untokenize(tokens))
+open(outputPath, 'xb').write(tokens)
 
 # TODO: FIXME: usa o grep para procurar possíveis erros tb
 # TODO: FIXME: converteos replacements e macros
 # TODO: FIXME: gera o info
-os.system(f'python {outPath}')
+os.system(f'python {outputPath}')
