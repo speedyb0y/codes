@@ -173,6 +173,10 @@ for fpath in sys.argv[2:]:
 
         lastCode, lastStr = thisCode, thisStr
 
+# TODO: FIXME: autoexecuta o CPP
 open(outPath, 'xb').write(tokenize.untokenize(tokens))
 
+# TODO: FIXME: usa o grep para procurar possíveis erros tb
+# TODO: FIXME: converteos replacements e macros
+# TODO: FIXME: gera o info
 os.system(f'python {outPath}')
