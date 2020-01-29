@@ -62,6 +62,23 @@ BUILTINS = (
     'yield',
     )
 
+
+definitions = {
+    '$': 'self',
+    '$$': 'self.parent',
+    '@': 'self._',
+    '@@': 'self._._',
+    'COLOR_BLUE'        : '\x1b[34m',
+    'COLOR_CYAN'        : '\x1b[36m',
+    'COLOR_CYAN_BOLD'   : '\x1b[36m\x1b[1m',
+    'COLOR_WHITE_BOLD'  : '\x1b[37m\x1b[1m',
+    'COLOR_YELLOW_BOLD' : '\x1b[33m\x1b[1m',
+    'COLOR_GREEN_BOLD'  : '\x1b[32m\x1b[1m',
+    'COLOR_RED_BOLD'    : '\x1b[31m\x1b[1m',
+    'COLOR_PURPLE_BOLD' : '\x1b[35m\x1b[1m',
+    'COLOR_RESET'       : '\x1b\x5b\x30\x6d',
+    }
+
 outPath = sys.argv[1]
 
 tokens = []
