@@ -17,114 +17,70 @@ import asyncio
 
 from time import time as LOOPTIME
 
-def LOG_(fmt, taskID, values):
-    print(tasksNames[taskID], fmt % values)
+# id(logged) -> NAME
+LOGNAMES = {}
 
-def dbg (*_): TASK.dbg (*_)
-def log (*_): TASK.log (*_)
-def warn(*_): TASK.warn(*_)
-def err (*_): TASK.err (*_)
+#      0, id(logged), NAME      - é registro de novo logged
+# LOG_ID, id(logged), values
+logMsgs = []
 
-class Task:
-    pass
+def LOG_(fmt, loggedID, values):
+    print(LOGNAMES[loggedID], fmt % values)
 
-# Possui log e um loop
-class Main(Task):
+# USAR TAMBÉM uma macro, mas coisas externas não enxergarão :/
+# a macro vai extrair o arquivo, linha, classe, fmt e level automaticamente
+# task ID e valores são variáveis
+def dbg   (logged, fmt, *values): LOG_ (fmt, id(logged), values)
+def log   (logged, fmt, *values): LOG_ (fmt, id(logged), values)
+def warn  (logged, fmt, *values): LOG_ (fmt, id(logged), values)
+def err   (logged, fmt, *values): LOG_ (fmt, id(logged), values)
 
-    def dbg   (fmt, *values): LOG_ (fmt, 0, values)
-    def log   (fmt, *values): LOG_ (fmt, 0, values)
-    def warn  (fmt, *values): LOG_ (fmt, 0, values)
-    def err   (fmt, *values): LOG_ (fmt, 0, values)
+# se chamar log('mensagem')         -> LOG_(logID, id(TASK),   values)
+# se chamar log(objeto, 'mensagem') -> LOG_(logID, id(objeto), values)
 
-    taskID = 0
-    taskName = '-'
-    runCount = 0
-    runTime = 0
-    statsTransitions = 0
+# Transforma qualquer objeto em algo logged
+def LOGGED(logged, name):
+    assert isinstance(name, str)
+    # Cadastra no nosso próprio map
+    LOGNAMES[id(logged)] = name
+    # Emite mensagem de crianção de um logged
+    logMsgs.append((0, id(logged), name))
+    return logged
 
-    def init($):
-        pass
-
-    def init_end($):
-        pass
-
-    async def loop($):
-        pass
+def TASK(task, name):
+    LOGGED(task, name)
+    task.runCount = 0
+    task.runTime = 0
+    TASKS.append(task)
+    _ASSERT(len(TASKS) <= len(LOGNAMES))
+    return task
 
 def TASK_ENTER(task):
-
     global TASK
     global TASKSINCE
-
-    assert TASK is Main
-
+    _ASSERT(TASK is main)
     TASK = task
-    TASK.statsTransitions += 1
+    TASK.runCount += 1
     TASKSINCE = LOOPTIME()
 
 def TASK_EXIT(task):
-
     global TASK
     global TASKSINCE
-
-    assert TASK is task
-
-    TASK.runTime += LOOPTIME() - TASKSINCE
+    _ASSERT(TASK is task)
     TASK.runCount += 1
-    TASK = Main
+    TASK.runTime += LOOPTIME() - TASKSINCE
+    TASK = main
     TASKSINCE = LOOPTIME()
 
-class Core(Task):
+class Core:
 
-    def __init__($, _, parent, name):
-
-        # print($, '__init__', name)
-
-        assert issubclass(_, Core)
-        assert isinstance($, _) or issubclass($, _)
-
-        # parecem estar apontando para a classe da instância :/
-        #assert not hasattr($, 'taskID')
-        #assert not hasattr($, 'name')
-        #assert not hasattr($, 'dbg')
-        #assert not hasattr($, 'log')
-        #assert not hasattr($, 'warn')
-        #assert not hasattr($, 'err')
-
-        assert len(tasksObjs) == len(tasksNames)
-
-        # task ID e valores são variáveis
-        # a macro vai extrair o arquivo, linha, classe, fmt e level automaticamente
-        def dbg   (fmt, *values): LOG_ (fmt, taskID, values)
-        def log   (fmt, *values): LOG_ (fmt, taskID, values)
-        def warn  (fmt, *values): LOG_ (fmt, taskID, values)
-        def err   (fmt, *values): LOG_ (fmt, taskID, values)
-
-        $taskID = taskID = len(tasksObjs)
-        $taskName = name
-        $parent = parent
-        $childs = []
-        $_ = (_ if isinstance($, _) else None)
-        $instances = []
-        $runCount = 0
-        $runTime = 0
-        $statsTransitions = 0
-        $log = log
-        $dbg = dbg
-        $warn = warn
-        $err = err
-
-        if $parent is not None:
-            $parent.childs.append($)
-
-        if $_ is not None:
-            $_.instances.append($)
-
-        tasksObjs.append($)
-        tasksNames.append($taskName)
-
-    def init_($):
+    def init_($, parent):
         log('INIT_')
+        assert issubclass($, Core)
+        assert issubclass(_, Core)
+        @, $$, $childs, $instances = $, parent, [], []
+        if @@ is not None:
+            @@childs.append($)
         $init($)
 
     def init($):
@@ -144,8 +100,13 @@ class Core(Task):
     def init3($):
         log('INIT3')
 
-    def init_instance_($):
+    def init_instance_($, _, parent):
         log('INIT_INSTANCE_')
+        assert isinstance($, _)
+        @, $$, $childs, $instances = _, parent, [], []
+        @instances.append($)
+        if $$ is not None:
+            $$childs.append($)
         $init_instance()
 
     def init_instance($):
@@ -231,12 +192,94 @@ class B(Top):
     class B2(Sub):
         def init($): $n = 3
 
-TASK = Main
-TASKSINCE = None
-tasksObjs = [Main]
-tasksNames = ['-'] # na verdade só precisa ser usado na hora d esalvar os logs :/
+def main():
 
-TASK_ENTER(Main)
+    # Temos os nomes das subclasses
+    # Cria as classes
+    for thingName in thingsNames:
+        thing = eval(thingName)
+        TASK_INIT(thing, thing, (eval(thingName.rsplit('.', 1)[0]) if '.' in thingName else None), thingName)
+        TASK_ENTER(thing)
+        thing.init_(thing)
+        TASK_EXIT(thing)
+
+    # Termina de iniciar as classes
+    for task in TASKS:
+        if task is not main:
+            TASK_ENTER(task)
+            task.init2_(task)
+            TASK_EXIT(task)
+
+    # Agora enforça
+    for task in TASKS:
+        if task is not main:
+            TASK_ENTER(task)
+            task.init3_(task)
+            TASK_EXIT(task)
+
+    # Cria as sessões de cada classe
+    for task in tuple(TASKS):
+        if task is not main:
+            # TASK_ENTER(task)
+            # log('CREATING MY %d INSTANCES', task.n)
+            for instanceID in range(task.n):
+                # print(task, task.n, instanceID)
+                # log('WILL CREATE MY INSTANCE %d/%d ', instanceID, task.n)
+
+                # pega a classe parente dessa classe, depois pega uma instância dessa classe parent
+                if parent := task.parent:
+                    parent = parent.instances[instanceID % len(parent.instances)]
+
+                if parent is None:
+                    name =                   f'{task.__name__} [{instanceID}]'
+                else:
+                    name = f'{parent.loggedName} {task.__name__} [{instanceID}]'
+
+                # TASK_EXIT(task)
+                instance = task(task, parent, name)
+
+                TASK_ENTER(instance)
+                instance.init_instance_()
+                TASK_EXIT(instance)
+
+                # TASK_ENTER(task)
+            # TASK_EXIT(task)
+
+    # Inicia tudo o que for sessão
+    for task in TASKS:
+        if isinstance(task, Core):
+            TASK_ENTER          (task)
+            task.init_instance_ ()
+            TASK_EXIT           (task)
+
+    # Finaliza as classes
+    for task in TASKS:
+        if not isinstance(task, Core) and task is not main:
+            TASK_ENTER    (task)
+            task.init_end_(task)
+            TASK_EXIT     (task)
+
+    log('Exiting')
+
+    print(thingsNames)
+    print(TASKS)
+    print(logsNames)
+
+    assert False
+
+    log('ENTERING MAIN LOOP')
+
+    while True:
+
+        log('MAIN LOOP ITER HAUHAHAUAUHAUAHUAUHA')
+
+    log('EXITING MAIN LOOP')
+
+TASK = None
+TASKSINCE = None
+TASKS = []
+
+TASK_ENTER(TASK_INIT(main, '-'))
 
 log('Welcome')
 
@@ -246,73 +289,4 @@ thingsNames = (
     'B', 'B.B0', 'B.B1', 'B.B2',
     )
 
-# Temos os nomes das subclasses
-
-# Cria as classes
-for thingName in thingsNames:
-    thing = eval(thingName)
-    Core.__init__(thing, thing, (eval(thingName.rsplit('.', 1)[0]) if '.' in thingName else None), thingName)
-    TASK_ENTER(thing)
-    thing.init_(thing)
-    TASK_EXIT(thing)
-
-# Termina de iniciar as classes
-for task in tasksObjs:
-    if task is not Main:
-        TASK_ENTER(task)
-        task.init2_(task)
-        TASK_EXIT(task)
-
-# Agora enforça
-for task in tasksObjs:
-    if task is not Main:
-        TASK_ENTER(task)
-        task.init3_(task)
-        TASK_EXIT(task)
-
-# Cria as sessões de cada classe
-for task in tuple(tasksObjs):
-    if task is not Main:
-        # TASK_ENTER(task)
-        # log('CREATING MY %d INSTANCES', task.n)
-        for instanceID in range(task.n):
-            # print(task, task.n, instanceID)
-            # log('WILL CREATE MY INSTANCE %d/%d ', instanceID, task.n)
-
-            # pega a classe parente dessa classe, depois pega uma instância dessa classe parent
-            if parent := task.parent:
-                parent = parent.instances[instanceID % len(parent.instances)]
-
-            if parent is None:
-                name =                   f'{task.__name__} [{instanceID}]'
-            else:
-                name = f'{parent.taskName} {task.__name__} [{instanceID}]'
-
-            # TASK_EXIT(task)
-            instance = task(task, parent, name)
-
-            TASK_ENTER(instance)
-            instance.init_instance_()
-            TASK_EXIT(instance)
-
-            # TASK_ENTER(task)
-        # TASK_EXIT(task)
-
-# Inicia tudo o que for sessão
-for task in tasksObjs:
-    if isinstance(task, Core):
-        TASK_ENTER(task)
-        task.init_instance_()
-        TASK_EXIT(task)
-
-# Finaliza as classes
-for task in tasksObjs:
-    if not isinstance(task, Core) and task is not Main:
-        TASK_ENTER(task)
-        task.init_end_(task)
-        TASK_EXIT(task)
-
-log('Exiting')
-
-print(thingsNames)
-print(tasksObjs)
+main()
