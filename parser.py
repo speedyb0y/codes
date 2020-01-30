@@ -206,24 +206,13 @@ LOG_COLOR  = COLOR_GREEN_BOLD
 WARN_COLOR = COLOR_PURPLE_BOLD
 ERR_COLOR  = COLOR_RED_BOLD
 
-DEFINITIONS = {
-    'COLOR_BOLD'        : COLOR_BOLD,
-    'COLOR_BLUE'        : COLOR_BLUE,
-    'COLOR_CYAN'        : COLOR_CYAN,
-    'COLOR_CYAN_BOLD'   : COLOR_CYAN_BOLD,
-    'COLOR_WHITE_BOLD'  : COLOR_WHITE_BOLD,
-    'COLOR_YELLOW_BOLD' : COLOR_YELLOW_BOLD,
-    'COLOR_GREEN_BOLD'  : COLOR_GREEN_BOLD,
-    'COLOR_RED_BOLD'    : COLOR_RED_BOLD,
-    'COLOR_PURPLE_BOLD' : COLOR_PURPLE_BOLD,
-    'COLOR_RESET'       : COLOR_RESET,
-    'DBG_COLOR'  : COLOR_GREEN_BOLD,
-    'LOG_COLOR'  : COLOR_GREEN_BOLD,
-    'WARN_COLOR' : COLOR_PURPLE_BOLD,
-    'ERR_COLOR'  : COLOR_RED_BOLD,
+# substitui um nome por alguma outra coisa, da forma como está esse valor
+replace_strs = {
+
     }
 
-REPLACEMENTS = {
+# substitui um nome por um valor constante -> repr(value)
+replace_values = {
     'COLOR_BOLD'        : COLOR_BOLD,
     'COLOR_BLUE'        : COLOR_BLUE,
     'COLOR_CYAN'        : COLOR_CYAN,
@@ -239,8 +228,10 @@ REPLACEMENTS = {
     'WARN_COLOR' : COLOR_PURPLE_BOLD,
     'ERR_COLOR'  : COLOR_RED_BOLD,
 
-    'ALWAYS_AND_FOREVER': "f'{COLOR_RED_BOLD}LOVE{COLOR_RESET}'",
+    'ALWAYS_AND_FOREVER': f"{COLOR_RED_BOLD}LOVE{COLOR_RESET}",
     }
+
+#constants = {k:repr(v) for k, v in constants.items()}
 
 # SCRIPT OUTPUT SOURCE_0 SOURCE_1 ... SOURCE_N
 assert len(sys.argv) >= 3
@@ -282,7 +273,7 @@ PRINTVERBOSE = PRINT
 # OBS.: NÃO PODE TERMINAR EM $, pois obj$ significaria obj em si
 # TODO: FIXME: tem que substituir as constantes :O
 def f(f):
-    return (
+    _ = ((constants[t] if t in constants else t) for t in re.split('([=+%&|^~*/\(\)\[\]\{\}:-]|\sand\s|\sor\s|\snot\s)', (
         re.sub(r'\s*[$]\s*', r'.', # demais $
         re.sub(r'\s*[@]\s*', r'.__class__', # demais @
         re.sub(r'(\s*[@]\s*)([_a-zA-Z0-9])', r'.__class__.\2', # @ sem estar no final
@@ -290,22 +281,36 @@ def f(f):
         re.sub(r'^(\s*[@]\s*)', r'self.__class__', #  demais base @
         re.sub(r'^(\s*[$]\s*)([_a-zA-Z0-9])', r'self.\2', # base $ com outro
         re.sub(r'^(\s*[@]\s*)([_a-zA-Z0-9])', r'self.__class__.\2', # base @ com outro
-        f))))))))
-
-assert f('  $  ') == 'self'
-assert f('  @  ') == 'self.__class__'
-assert f('  @@  ') == 'self.__class__.__class__'
-assert f('  @@@  ') == 'self.__class__.__class__.__class__'
-assert f('  $e + 1') == 'self.e + 1'
-assert f(' A $ B @ C["KEY"]["KEY2"][0] $ D @ ') == ' A.B.__class__.C["KEY"]["KEY2"][0].D.__class__'
+        f))))))))))
+    return ''.join(_)
 
 def fstringer(fstring):
     last = None
-    return ''.join((last := (f(x) if last == '{' else x)) for x in re.split(r'([{]|[}])', fstring.replace(r'\{', '\x00'))).replace('\x00', r'\{')
+    return repr(''.join((last := (f(x) if last == '{' else x)) for x in re.split(r'([{]|[}])', fstring.replace(r'\{', '\x00'))).replace('\x00', r'\{'))
 
-assert fstringer("f'{$}'") == "f'{self}'"
-assert fstringer("f'{@}'") == "f'{self.__class__}'"
-assert fstringer(r"f'{$}{$B}\{$}\{$X}{$$}\{@}some{$D$O}nice text{E}{F}here{G}'") == r"f'{self}{self.B}\{$}\{$X}{self.}\{@}some{self.D.O}nice text{E}{F}here{G}'"
+print(f('ALWAYS_AND_FOREVER'))
+
+print(         repr(r'f"{ALWAYS_AND_FOREVER}"')  )
+print(repr(fstringer('f"{ALWAYS_AND_FOREVER}"')))
+print(f('  $  '))
+print(f('  @  '))
+print(f('  @@@  '))
+input()
+
+def ASSERT_EQ(a, b):
+    assert a == b, (a, b)
+
+ASSERT_EQ(f('  $  '), 'self')
+ASSERT_EQ(f('  @  '), 'self.__class__')
+ASSERT_EQ(f('  @@  '), 'self.__class__.__class__')
+
+ASSERT_EQ(f('  @@@  '), 'self.__class__.__class__.__class__')
+ASSERT_EQ(f('  $e + 1'), 'self.e + 1')
+ASSERT_EQ(f(' A $ B @ C["KEY"]["KEY2"][0] $ D @ '), ' A.B.__class__.C["KEY"]["KEY2"][0].D.__class__')
+
+#assert fstringer("f'{$}'") == "f'{self}'"
+#assert fstringer("f'{@}'") == "f'{self.__class__}'"
+#assert fstringer(r"f'{$}{$B}\{$}\{$X}{$$}\{@}some{$D$O}nice text{E}{F}here{G}'") == r"f'{self}{self.B}\{$}\{$X}{self.}\{@}some{self.D.O}nice text{E}{F}here{G}'"
 
 tokens = []
 
@@ -414,11 +419,11 @@ for sourcePath in sourcePaths:
                 identifier = identifier[:-1]
                 # Substitutions
                 try:
-                    identifier = REPLACEMENTS[identifier]
+                    identifier = repr(constants[identifier])
                 except KeyError:
                     pass
                 else:
-                    PRINT('SUBSTITUTED')
+                    PRINT('SUBSTITUTED BY CONSTANT')
                 tokens.append((TOKEN_NAME, identifier)) # Insere ele antes da próxima coisa
                 # finalizando o identifier =] - ver se é um objeto.dbg() :O
                 identifier = None
@@ -452,7 +457,7 @@ for sourcePath in sourcePaths:
             putCode = None
         elif code == TOKEN_STRING:
             if str_.startswith('f'):
-                putStr = fstringer(str_)
+                putStr = fstringer(str_) #repr()
         else:
             PRINTVERBOSE('NOT STARTING/CONTINUING IDENTIFIER / NOT STRING')
             assert identifier is None
@@ -461,7 +466,7 @@ for sourcePath in sourcePaths:
         # quebra de linha, encoding/começo de arquivo
         isIdentifierAllowed = code in (TOKEN_NL, TOKEN_NEWLINE, TOKEN_INDENT, TOKEN_DEDENT, TOKEN_ERROR, TOKEN_ENDMARKER) or str_ in (
             '$', '@',
-            '[', ']', '(', ')', '{', '}',
+            '[', ']', '(', ')', '{', '}', ':', ';', '<', '>', '>=', '<=',
             '=', '~', '+', '-', '/', '*', '%', '&', '|', '^', '~', '.', ':', ',', '==', '**',
             'as', 'is', 'from', 'in',
             'def', 'class', 'while',
@@ -508,3 +513,10 @@ open(outputPath, 'wb').write(tokens)
 # TODO: FIXME: converteos replacements e macros
 # TODO: FIXME: gera o info
 os.system(f'python {outputPath}')
+
+
+# TODO: FIXME: teoricamente seria possível u sar uma linked list dos tokens e ir executando regras :/
+
+# ou pelo menos carregar todos os arquivos em um único deque, inserindo  amarca fFILEEND  ou deixa ro filestart
+# começar o deque com um deque((ENCODING,))
+# e simplesmente retirar eles
