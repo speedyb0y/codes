@@ -1,4 +1,10 @@
-# codes
+
+# I ASSUME NO RESPONSABILITY IF YOU GO BLIND AFTER LOOKING BY CODE
+# BROWSE IT BY YOUR OWN RISK
+# ONLY EXECUTE IT ON A COMPUTER YOU'RE ALLOWED TO EXPLODE
+
+
+# example
 Sample code for asynchronous, parallel multitasking systems
 
 - Use $name instead of self.name
