@@ -1,21 +1,29 @@
-# INVÁLIDOS
-# $@@
-# $@@something
-# $@$
-# @$@
-# $.
-# @._
+#!/usr/bin/python
 
 # TODO: FIXME: substituir por ouitro nome assim forçar usa r$ e @, mas dar erro se tentar acessar paths inválidos :/
 
 # $ é usado mesmo nas classes, significa SELF, SI MESMO, SHORTCUT, AQUILO QUE ESTÁ SENDO EXECUTADO
 # se eu pego um objeto e digo "o seu $", como em objeto$, estou dizendo entre nele e assuma ele como si, então objeto$nome é ele dizendo "o meu nome"
+print(f'olha {str$upper}')
+# se substituir o nome por uma constante, então já estou fazendo o trabalho do {}, então tem que retirar eles!
+# mas suportar coisas do tipo f'CONSTANTE[1:-1]'
+# coisas mais complexas tem que usar DEFINITION ao invés d econstante
+
+# DEFINITIONS NÃO SUBSTITUIRAO O VALOR, apenas serão incluidos o nome=valor no source
+# solução: as constantes só podem ser {}
+print(f'{COLOR_RED_BOLD}LOVE{COLOR_RESET}' )
+print(ALWAYS_AND_FOREVER)
 
 import sys
 import time
+import random
+import signal
 import asyncio
 
-from time import time as LOOPTIME
+create_connection = None
+signal_handler_quit = None
+
+def _ASSERT(condition): assert condition
 
 # id(logged) -> NAME
 LOGNAMES = {}
@@ -39,16 +47,20 @@ def err   (logged, fmt, *values): LOG_ (fmt, id(logged), values)
 # se chamar log(objeto, 'mensagem') -> LOG_(logID, id(objeto), values)
 
 # Transforma qualquer objeto em algo logged
-def LOGGED(logged, name):
-    assert isinstance(name, str)
+def LOGGED_NEW(logged, name):
+    _ASSERT(isinstance(name, str))
     # Cadastra no nosso próprio map
     LOGNAMES[id(logged)] = name
     # Emite mensagem de crianção de um logged
     logMsgs.append((0, id(logged), name))
     return logged
 
-def TASK(task, name):
-    LOGGED(task, name)
+TASK = None
+TASKSINCE = None
+TASKS = []
+
+def TASK_NEW(task, name):
+    LOGGED_NEW(task, name)
     task.runCount = 0
     task.runTime = 0
     TASKS.append(task)
@@ -76,11 +88,13 @@ class Core:
 
     def init_($, parent):
         log('INIT_')
-        assert issubclass($, Core)
-        assert issubclass(_, Core)
-        @, $$, $childs, $instances = $, parent, [], []
-        if @@ is not None:
-            @@childs.append($)
+        _ASSERT(issubclass($, Core))
+        _ASSERT(issubclass(parent, Core) or parent is None)
+        $$ = parent
+        if $$ is not None:
+            $$childs.append($)
+        $childs = []
+        $instances = []
         $init($)
 
     def init($):
@@ -100,13 +114,15 @@ class Core:
     def init3($):
         log('INIT3')
 
-    def init_instance_($, _, parent):
+    def init_instance_($, parent):
         log('INIT_INSTANCE_')
-        assert isinstance($, _)
-        @, $$, $childs, $instances = _, parent, [], []
-        @instances.append($)
+        _ASSERT(isinstance($, Core))
+        $$ = parent
         if $$ is not None:
             $$childs.append($)
+        @instances.append($)
+        $childs = []
+        $instances = []
         $init_instance()
 
     def init_instance($):
@@ -192,16 +208,17 @@ class B(Top):
     class B2(Sub):
         def init($): $n = 3
 
-def main():
+async def main():
+
+    log('Welcome')
 
     # Temos os nomes das subclasses
     # Cria as classes
     for thingName in thingsNames:
-        thing = eval(thingName)
-        TASK_INIT(thing, thing, (eval(thingName.rsplit('.', 1)[0]) if '.' in thingName else None), thingName)
-        TASK_ENTER(thing)
-        thing.init_(thing)
-        TASK_EXIT(thing)
+        task = TASK_NEW(eval(thingName), thingName)
+        TASK_ENTER(task)
+        task.init_(task, (eval(thingName.rsplit('.', 1)[0]) if '.' in thingName else None))
+        TASK_EXIT(task)
 
     # Termina de iniciar as classes
     for task in TASKS:
@@ -220,37 +237,17 @@ def main():
     # Cria as sessões de cada classe
     for task in tuple(TASKS):
         if task is not main:
-            # TASK_ENTER(task)
-            # log('CREATING MY %d INSTANCES', task.n)
             for instanceID in range(task.n):
-                # print(task, task.n, instanceID)
-                # log('WILL CREATE MY INSTANCE %d/%d ', instanceID, task.n)
-
                 # pega a classe parente dessa classe, depois pega uma instância dessa classe parent
-                if parent := task.parent:
-                    parent = parent.instances[instanceID % len(parent.instances)]
-
-                if parent is None:
-                    name =                   f'{task.__name__} [{instanceID}]'
-                else:
+                if task$ is not None:
+                    parent = task$instances[instanceID % len(task$instances)]
                     name = f'{parent.loggedName} {task.__name__} [{instanceID}]'
-
-                # TASK_EXIT(task)
-                instance = task(task, parent, name)
-
-                TASK_ENTER(instance)
-                instance.init_instance_()
-                TASK_EXIT(instance)
-
-                # TASK_ENTER(task)
-            # TASK_EXIT(task)
-
-    # Inicia tudo o que for sessão
-    for task in TASKS:
-        if isinstance(task, Core):
-            TASK_ENTER          (task)
-            task.init_instance_ ()
-            TASK_EXIT           (task)
+                else:
+                    name =                     f'{task.__name__} [{instanceID}]'
+                task2 = TASK_NEW(task(), name)
+                TASK_ENTER(task2)
+                task2.init_instance_(parent)
+                TASK_EXIT(task2)
 
     # Finaliza as classes
     for task in TASKS:
@@ -275,18 +272,23 @@ def main():
 
     log('EXITING MAIN LOOP')
 
-TASK = None
-TASKSINCE = None
-TASKS = []
-
-TASK_ENTER(TASK_INIT(main, '-'))
-
-log('Welcome')
-
 thingsNames = (
     'TopSample', 'TopSample.SubSample',
     'A', 'A.A0', 'A.A1', 'A.A2',
     'B', 'B.B0', 'B.B1', 'B.B2',
     )
 
-main()
+loop_ = asyncio.get_event_loop()
+
+# Hooks
+create_connection_, loop_.create_connection = loop_.create_connection, create_connection
+
+LOOPTIME = loop_.time
+LOOPTIME0 = LOOPTIME()
+
+TASK = TASK_NEW(main, '-')
+TASK_ENTER(TASK)
+
+loop_.add_signal_handler(signal.SIGTERM, signal_handler_quit)
+loop_.add_signal_handler(signal.SIGUSR1, signal_handler_quit)
+loop_.run_until_complete(main())
