@@ -4,9 +4,13 @@
 #
 import sys
 import os
+import collections
 import io
 import re
 import tokenize
+
+def is_blank(_):
+    return all((_ in ' \n\r\t\v') for _ in _)
 
 def log(fmt, *values):
     print(f'{LOG_COLOR}{fmt}{COLOR_RESET}' % values)
@@ -145,6 +149,8 @@ MODULES = (
     'asyncio',
     'aiohttp',
     'websockets',
+    'collections',
+    'lxml',
     )
 
 assert all(((len(set(a) & set(b)) == 0) or print(set(a) & set(b)))
@@ -246,20 +252,18 @@ assert len(sys.argv) == len(set(sys.argv))
 
 outputPath, sourcePaths = sys.argv[1], sys.argv[2:]
 
-tokens = []
-
 # TODO: FIXME: só exibir a mensagem e as colunas que mudarem
 def PRINT(msg):
 
     if L0:
-        SOURCEFILE_ = f'{COLOR_WHITE_BOLD}' '%50s' % sourcePath[-50:]
-        SOURCELINE_ = f'{COLOR_BOLD}{COLOR_WHITE}' '%5d   ' % sourceLine
+        SOURCEFILE_ = f'{COLOR_WHITE_BOLD}' f'%{MSPL}s' % sourcePath[-50:]
+        SOURCELINE_ = f'{COLOR_BOLD}{COLOR_WHITE}' f'%{MSLL}d' % sourceLine
         TOKENCODE_  = f'{COLOR_GREEN_BOLD}'  '%-10s' % tokenThisName
         TOKENSTR_   = f'{COLOR_PURPLE_BOLD}' '%-20s' % str_.__repr__()[1:-1][:20]
         ISALLOWED_  = f'{COLOR_PURPLE_BOLD}'  '%-4s' % ('YES' if isIdentifierAllowed else 'NO')
     else:
-        SOURCEFILE_ = '%50s' % ' '
-        SOURCELINE_ = '%5s   '  % ' '
+        SOURCEFILE_ = f'%{MSPL}s' % ' '
+        SOURCELINE_ = f'%{MSLL}s'  % ' '
         TOKENCODE_  = '%10s' % ' '
         TOKENSTR_   = '%20s' % ' '
         ISALLOWED_  = '%4s'  % ' '
@@ -303,18 +307,30 @@ assert fstringer("f'{$}'") == "f'{self}'"
 assert fstringer("f'{@}'") == "f'{self.__class__}'"
 assert fstringer(r"f'{$}{$B}\{$}\{$X}{$$}\{@}some{$D$O}nice text{E}{F}here{G}'") == r"f'{self}{self.B}\{$}\{$X}{self.}\{@}some{self.D.O}nice text{E}{F}here{G}'"
 
-def is_blank(_):
-    return all((_ in ' \n\r\t\v') for _ in _)
+tokens = []
+
+sources = collections.deque()
 
 for sourcePath in sourcePaths:
 
-    log(f'PROCESSING SOURCE {COLOR_CYAN}%s' % sourcePath)
+    log(f'LOADING SOURCE {COLOR_CYAN}%s' % sourcePath)
 
     try:
         source = open(sourcePath, 'r').read().encode('utf-8')
     except FileNotFoundError:
         err('FAILED TO LOAD FILE - FILE NOT FOUND')
         exit(1)
+
+    sources.append(source)
+
+MSPL = max(map(len, sourcePaths))
+MSLL = len(str(max((source.count(b'\n') for source in sources))))
+
+for sourcePath in sourcePaths:
+
+    source = sources.popleft()
+
+    log(f'PROCESSING SOURCE {COLOR_CYAN}%s' % sourcePath)
 
     lastCode = lastStr = None
 
@@ -332,8 +348,9 @@ for sourcePath in sourcePaths:
         try:
             tokenThisName = tokensNames[code]
         except KeyError:
+            err('UNKNOWN TOKEN CODE')
             print((code, str_, sourceLine, sourceCol, _))
-            raise
+            exit(1)
 
         L0 = True
         PRINT('TOKEN READ')
@@ -400,6 +417,8 @@ for sourcePath in sourcePaths:
                     identifier = REPLACEMENTS[identifier]
                 except KeyError:
                     pass
+                else:
+                    PRINT('SUBSTITUTED')
                 tokens.append((TOKEN_NAME, identifier)) # Insere ele antes da próxima coisa
                 # finalizando o identifier =] - ver se é um objeto.dbg() :O
                 identifier = None
