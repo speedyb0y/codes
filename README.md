@@ -12,3 +12,9 @@ Sample code for asynchronous, parallel multitasking systems
 - A better and high performance logging system
 - A better debugging system
 - A parallel module execution system
+
+
+
+SPECIAL THANKS TO MY CODE REVIWERS
+  - MY MOM (WHO SAID IT'S PERFECT ALTHOUGHT SHE DIDNT ACTUALLY SEE IT)
+  - MY GIRLFRIEND (WHO KNOWS NOTHING ABOUT PROGRAMMING)
