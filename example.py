@@ -4,15 +4,12 @@
 
 # $ é usado mesmo nas classes, significa SELF, SI MESMO, SHORTCUT, AQUILO QUE ESTÁ SENDO EXECUTADO
 # se eu pego um objeto e digo "o seu $", como em objeto$, estou dizendo entre nele e assuma ele como si, então objeto$nome é ele dizendo "o meu nome"
-print(f'olha {str$upper}')
 # se substituir o nome por uma constante, então já estou fazendo o trabalho do {}, então tem que retirar eles!
 # mas suportar coisas do tipo f'CONSTANTE[1:-1]'
 # coisas mais complexas tem que usar DEFINITION ao invés d econstante
 
 # DEFINITIONS NÃO SUBSTITUIRAO O VALOR, apenas serão incluidos o nome=valor no source
 # solução: as constantes só podem ser {}
-print(f'{COLOR_RED_BOLD}LOVE{COLOR_RESET}' )
-print(ALWAYS_AND_FOREVER)
 
 import sys
 import time
@@ -20,10 +17,12 @@ import random
 import signal
 import asyncio
 
-create_connection = None
-signal_handler_quit = None
+#
+create_connection = signal_handler_quit = None
 
-def _ASSERT(condition): assert condition
+# TODO: FIXME: tem que virar macro
+def _ASSERT(condition):
+    assert (condition)
 
 # id(logged) -> NAME
 LOGNAMES = {}
@@ -32,16 +31,17 @@ LOGNAMES = {}
 # LOG_ID, id(logged), values
 logMsgs = []
 
-def LOG_(fmt, loggedID, values):
-    print(LOGNAMES[loggedID], fmt % values)
+def LOG_(logID, loggedID, *values):
+    fpath, line, level, fmt = LOGFMTS[logID]
+    print(f'{COLOR_YELLOW_BOLD}{LOGNAMES[loggedID]} {fpath}:{line} {(DBG_COLOR,LOG_COLOR,WARN_COLOR,ERR_COLOR)[level]}{fmt}{COLOR_RESET}' % values)
 
 # USAR TAMBÉM uma macro, mas coisas externas não enxergarão :/
 # a macro vai extrair o arquivo, linha, classe, fmt e level automaticamente
 # task ID e valores são variáveis
-def dbg   (logged, fmt, *values): LOG_ (fmt, id(logged), values)
-def log   (logged, fmt, *values): LOG_ (fmt, id(logged), values)
-def warn  (logged, fmt, *values): LOG_ (fmt, id(logged), values)
-def err   (logged, fmt, *values): LOG_ (fmt, id(logged), values)
+#def dbg   (logged, fmt, *values): LOG_ (fmt, id(logged), values)
+#def log   (logged, fmt, *values): LOG_ (fmt, id(logged), values)
+#def warn  (logged, fmt, *values): LOG_ (fmt, id(logged), values)
+#def err   (logged, fmt, *values): LOG_ (fmt, id(logged), values)
 
 # se chamar log('mensagem')         -> LOG_(logID, id(TASK),   values)
 # se chamar log(objeto, 'mensagem') -> LOG_(logID, id(objeto), values)
@@ -55,9 +55,8 @@ def LOGGED_NEW(logged, name):
     logMsgs.append((0, id(logged), name))
     return logged
 
-TASK = None
-TASKSINCE = None
-TASKS = []
+def LOGGED_NAME(logged):
+    return LOGNAMES[id(logged)]
 
 def TASK_NEW(task, name):
     LOGGED_NEW(task, name)
@@ -89,7 +88,9 @@ class Core:
     def init_($, parent):
         log('INIT_')
         _ASSERT(issubclass($, Core))
-        _ASSERT(issubclass(parent, Core) or parent is None)
+        _ASSERT(parent is None or issubclass(parent, Core))
+        _ASSERT($ is self$)
+        _ASSERT($.__doc__ is self$__doc__)
         $$ = parent
         if $$ is not None:
             $$childs.append($)
@@ -114,9 +115,13 @@ class Core:
     def init3($):
         log('INIT3')
 
-    def init_instance_($, parent):
+    def init_instance_($, parent, id_):
         log('INIT_INSTANCE_')
         _ASSERT(isinstance($, Core))
+        _ASSERT(isinstance(id_, int))
+        _ASSERT(id_ >= 0)
+        _ASSERT(id_ <= @n)
+        $id = id_
         $$ = parent
         if $$ is not None:
             $$childs.append($)
@@ -163,7 +168,7 @@ class TopSample(Top):
 
         def init_instance($):
             log('SOU UMA INSTANCIA DO SAMPLE 2')
-            assert @ is $_
+            assert @ is $__class__
 
         async def next($):
             pass
@@ -191,28 +196,50 @@ class TopSample(Top):
             @
 
 class A(Top):
-    def init($): $n = 2
+
+    def init($):
+        $n = 3
+
     class A0(Sub):
-        def init($): $n = 10
+
+        def init($):
+            $n = 33
+
     class A1(Sub):
-        def init($): $n = 10
+
+        def init($):
+            $n = 30
+
     class A2(Sub):
-        def init($): $n = 10
+        def init($):
+            $n = 100
 
 class B(Top):
-    def init($): $n = 2
+
+    def init($):
+        $n = 2
+
     class B0(Sub):
         def init($): $n = 3
+
     class B1(Sub):
         def init($): $n = 3
+
     class B2(Sub):
-        def init($): $n = 3
+
+        def init($):
+            $n = 5
+
+        class B2X(Sub):
+
+            def init($):
+                $n = 100
 
 async def main():
 
     log('Welcome')
 
-    # Temos os nomes das subclasses
+    # Temos os nomes das classes
     # Cria as classes
     for thingName in thingsNames:
         task = TASK_NEW(eval(thingName), thingName)
@@ -222,45 +249,43 @@ async def main():
 
     # Termina de iniciar as classes
     for task in TASKS:
-        if task is not main:
-            TASK_ENTER(task)
-            task.init2_(task)
-            TASK_EXIT(task)
+        TASK_ENTER(task)
+        task.init2_(task)
+        TASK_EXIT(task)
 
     # Agora enforça
+    log('INIT 3')
     for task in TASKS:
-        if task is not main:
-            TASK_ENTER(task)
-            task.init3_(task)
-            TASK_EXIT(task)
+        TASK_ENTER(task)
+        task.init3_(task)
+        TASK_EXIT(task)
 
     # Cria as sessões de cada classe
+    log('CREATING INSTANCES')
     for task in tuple(TASKS):
-        if task is not main:
-            for instanceID in range(task.n):
-                # pega a classe parente dessa classe, depois pega uma instância dessa classe parent
-                if task$ is not None:
-                    parent = task$instances[instanceID % len(task$instances)]
-                    name = f'{parent.loggedName} {task.__name__} [{instanceID}]'
-                else:
-                    name =                     f'{task.__name__} [{instanceID}]'
-                task2 = TASK_NEW(task(), name)
-                TASK_ENTER(task2)
-                task2.init_instance_(parent)
-                TASK_EXIT(task2)
+        task.log('CREATING %d INSTANCES', task.n)
+        for instanceID in range(task.n):
+            if parent := task$$: # pega a classe parente dessa classe, depois pega uma instância dessa classe parent
+                parent = parent.instances[instanceID % len(parent.instances)]
+            task2 = TASK_NEW(task(), (f'{task.__name__} [{instanceID}]' if parent is None else
+                f'{LOGGED_NAME(parent)} {task.__name__} [{instanceID}]'))
+            TASK_ENTER(task2)
+            task2.init_instance_(parent, instanceID)
+            TASK_EXIT(task2)
+
+    # TODO: FIXME: TASK_NEW(task('NAME', id))
 
     # Finaliza as classes
     for task in TASKS:
-        if not isinstance(task, Core) and task is not main:
+        if not isinstance(task, Core):
             TASK_ENTER    (task)
             task.init_end_(task)
             TASK_EXIT     (task)
 
-    log('Exiting')
+    log('Has %d tasks.', len(TASKS))
 
-    print(thingsNames)
-    print(TASKS)
-    print(logsNames)
+    for task in TASKS:
+        task.log('Im here, master.')
 
     assert False
 
@@ -276,6 +301,7 @@ thingsNames = (
     'TopSample', 'TopSample.SubSample',
     'A', 'A.A0', 'A.A1', 'A.A2',
     'B', 'B.B0', 'B.B1', 'B.B2',
+    'B.B2.B2X',
     )
 
 loop_ = asyncio.get_event_loop()
@@ -286,9 +312,15 @@ create_connection_, loop_.create_connection = loop_.create_connection, create_co
 LOOPTIME = loop_.time
 LOOPTIME0 = LOOPTIME()
 
-TASK = TASK_NEW(main, '-')
-TASK_ENTER(TASK)
+# Queremos ter a main como task (estatísticas, contexto padrão de logging, etc) mas não queremos ter ela na lista de tasks
+TASK = LOGGED_NEW(main, '[main]')
+TASK.runCount = 1
+TASK.runTime = 0
+TASKSINCE = LOOPTIME0
+TASKS = []
 
 loop_.add_signal_handler(signal.SIGTERM, signal_handler_quit)
 loop_.add_signal_handler(signal.SIGUSR1, signal_handler_quit)
 loop_.run_until_complete(main())
+
+# em coisas como o crate_connection, se temos qu eusa ro get_current_task(), então assert TASK is main
