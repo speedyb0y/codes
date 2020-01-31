@@ -207,29 +207,38 @@ WARN_COLOR = COLOR_PURPLE_BOLD
 ERR_COLOR  = COLOR_RED_BOLD
 
 # substitui um nome por alguma outra coisa, da forma como está esse valor
-replace_strs = {
-
-    }
-
 # substitui um nome por um valor constante -> repr(value)
-replace_values = {
-    'COLOR_BOLD'        : COLOR_BOLD,
-    'COLOR_BLUE'        : COLOR_BLUE,
-    'COLOR_CYAN'        : COLOR_CYAN,
-    'COLOR_CYAN_BOLD'   : COLOR_CYAN_BOLD,
-    'COLOR_WHITE_BOLD'  : COLOR_WHITE_BOLD,
-    'COLOR_YELLOW_BOLD' : COLOR_YELLOW_BOLD,
-    'COLOR_GREEN_BOLD'  : COLOR_GREEN_BOLD,
-    'COLOR_RED_BOLD'    : COLOR_RED_BOLD,
-    'COLOR_PURPLE_BOLD' : COLOR_PURPLE_BOLD,
-    'COLOR_RESET'       : COLOR_RESET,
-    'DBG_COLOR'  : COLOR_GREEN_BOLD,
-    'LOG_COLOR'  : COLOR_GREEN_BOLD,
-    'WARN_COLOR' : COLOR_PURPLE_BOLD,
-    'ERR_COLOR'  : COLOR_RED_BOLD,
+REPLACE = {
+    'COLOR_BOLD':         COLOR_BOLD,
+    'COLOR_BLUE':         COLOR_BLUE,
+    'COLOR_CYAN':         COLOR_CYAN,
+    'COLOR_CYAN_BOLD':    COLOR_CYAN_BOLD,
+    'COLOR_WHITE':        COLOR_WHITE,
+    'COLOR_WHITE_BOLD':   COLOR_WHITE_BOLD,
+    'COLOR_YELLOW':       COLOR_YELLOW,
+    'COLOR_YELLOW_BOLD':  COLOR_YELLOW_BOLD,
+    'COLOR_GREEN':        COLOR_GREEN,
+    'COLOR_GREEN_BOLD':   COLOR_GREEN_BOLD,
+    'COLOR_RED':          COLOR_RED,
+    'COLOR_RED_BOLD':     COLOR_RED_BOLD,
+    'COLOR_PURPLE':       COLOR_PURPLE,
+    'COLOR_PURPLE_BOLD':  COLOR_PURPLE_BOLD,
+    'COLOR_RESET':        COLOR_RESET,
+
+    'DBG_COLOR':       COLOR_GREEN_BOLD,
+    'LOG_COLOR':       COLOR_GREEN_BOLD,
+    'WARN_COLOR':      COLOR_PURPLE_BOLD,
+    'ERR_COLOR':       COLOR_RED_BOLD,
 
     'ALWAYS_AND_FOREVER': f"{COLOR_RED_BOLD}LOVE{COLOR_RESET}",
+    'TRES': '(1 + 2)',
     }
+
+# Tem que resolver de baixo para cima
+# UM -> 1
+# DOIS -> 2
+# TRES -> UM + DOIS
+# print(TRES) -> 3
 
 #constants = {k:repr(v) for k, v in constants.items()}
 
@@ -260,61 +269,86 @@ def PRINT(msg):
         ISALLOWED_  = '%4s'  % ' '
 
     MSG_            = f'{COLOR_YELLOW_BOLD}' '%-50s' % msg
-    IDENTIFIERORIG  = f'{COLOR_WHITE_BOLD}'  '%-35s' % ('' if identifierOriginal is None else identifierOriginal)
     IDENTIFIER      = f'{COLOR_WHITE_BOLD}'  '%-35s' % ('' if identifier is None else identifier)
 
-    print(f'{SOURCEFILE_} {SOURCELINE_} {TOKENSTR_} {TOKENCODE_} {MSG_} {ISALLOWED_} {IDENTIFIERORIG} {IDENTIFIER}')
+    print(f'{SOURCEFILE_} {SOURCELINE_} {TOKENSTR_} {TOKENCODE_} {MSG_} {ISALLOWED_} {IDENTIFIER}')
 
 def PRINTVERBOSE(msg):
     pass
 
 PRINTVERBOSE = PRINT
 
+LOGFMTS = []
+
 # OBS.: NÃO PODE TERMINAR EM $, pois obj$ significaria obj em si
 # TODO: FIXME: tem que substituir as constantes :O
-def f(f):
-    _ = ((constants[t] if t in constants else t) for t in re.split('([=+%&|^~*/\(\)\[\]\{\}:-]|\sand\s|\sor\s|\snot\s)', (
-        re.sub(r'\s*[$]\s*', r'.', # demais $
-        re.sub(r'\s*[@]\s*', r'.__class__', # demais @
-        re.sub(r'(\s*[@]\s*)([_a-zA-Z0-9])', r'.__class__.\2', # @ sem estar no final
-        re.sub(r'^(\s*[$]\s*)', r'self', #  demais base $
-        re.sub(r'^(\s*[@]\s*)', r'self.__class__', #  demais base @
-        re.sub(r'^(\s*[$]\s*)([_a-zA-Z0-9])', r'self.\2', # base $ com outro
-        re.sub(r'^(\s*[@]\s*)([_a-zA-Z0-9])', r'self.__class__.\2', # base @ com outro
-        f))))))))))
-    return ''.join(_)
+
 
 def fstringer(fstring):
     last = None
-    return repr(''.join((last := (f(x) if last == '{' else x)) for x in re.split(r'([{]|[}])', fstring.replace(r'\{', '\x00'))).replace('\x00', r'\{'))
+    return ''.join((last := (f(x) if last == '{' else x)) for x in re.split(r'([{]|[}])', fstring.replace(r'\{', '\x00'))).replace('\x00', r'\{')
 
-print(f('ALWAYS_AND_FOREVER'))
+# tem que fazer melhor do qu eisso. após isolar o "{ F.efw@.x$[1] }", extrair só os identifiers contidos nele e convertê-los individualmente :S
+# por enquant os uporta somente "{ MACRO_NAME }"
+### SE FOR PARA SUBSTITUIR POR VALOR, tem qwue retirar o {}
+# se for para substituir por nome, manter o {}?
 
-print(         repr(r'f"{ALWAYS_AND_FOREVER}"')  )
-print(repr(fstringer('f"{ALWAYS_AND_FOREVER}"')))
-print(f('  $  '))
-print(f('  @  '))
-print(f('  @@@  '))
-input()
+#print(f('ALWAYS_AND_FOREVER'))
+
+#print(         repr(r'f"{ALWAYS_AND_FOREVER}"')  )
+#print(repr(fstringer('f"{ALWAYS_AND_FOREVER}"')))
+#print(f('  $  '))
+#print(f('  @  '))
+#print(f('  @@@  '))
+#input()
 
 def ASSERT_EQ(a, b):
     assert a == b, (a, b)
-
-ASSERT_EQ(f('  $  '), 'self')
-ASSERT_EQ(f('  @  '), 'self.__class__')
-ASSERT_EQ(f('  @@  '), 'self.__class__.__class__')
-
-ASSERT_EQ(f('  @@@  '), 'self.__class__.__class__.__class__')
-ASSERT_EQ(f('  $e + 1'), 'self.e + 1')
-ASSERT_EQ(f(' A $ B @ C["KEY"]["KEY2"][0] $ D @ '), ' A.B.__class__.C["KEY"]["KEY2"][0].D.__class__')
 
 #assert fstringer("f'{$}'") == "f'{self}'"
 #assert fstringer("f'{@}'") == "f'{self.__class__}'"
 #assert fstringer(r"f'{$}{$B}\{$}\{$X}{$$}\{@}some{$D$O}nice text{E}{F}here{G}'") == r"f'{self}{self.B}\{$}\{$X}{self.}\{@}some{self.D.O}nice text{E}{F}here{G}'"
 
-tokens = []
+# se começa com um . está errado
 
-sources = collections.deque()
+def faz(identifier):
+    final = None
+    last = None
+    for word in identifier:
+        if final is not None:
+            if word == '$':
+                assert last != '@'
+                if last == '$':
+                    final += '.parent'
+                else:
+                    final += ''
+            elif word == '@':
+                if last == '@':
+                    final += '.parent'
+                else:
+                    final += '.__class__'
+            else:
+                #if last in '$@':
+                final += '.'
+                final += word
+        elif word == '$':
+            final = 'self'
+        elif word == '@':
+            final = 'self.__class__'
+        else:
+            final = word
+        last = word
+    return final
+
+ASSERT_EQ( faz(['$']) , 'self' )
+ASSERT_EQ( faz(['$', '$']) , 'self.parent' )
+ASSERT_EQ( faz(['$', '$', '$']) , 'self.parent.parent' )
+ASSERT_EQ( faz(['@']) , 'self.__class__' )
+ASSERT_EQ( faz(['@', '@']) , 'self.__class__.parent' )
+ASSERT_EQ( faz(['@', '@', '@']) , 'self.__class__.parent.parent' )
+ASSERT_EQ( faz(['A', '$', '$', '@', 'B', 'C', 'D', '@', 'E', '@']) , 'A.parent.__class__.B.C.D.__class__.E.__class__' )
+
+sources, tokens = collections.deque(), []
 
 for sourcePath in sourcePaths:
 
@@ -328,8 +362,7 @@ for sourcePath in sourcePaths:
 
     sources.append(source)
 
-MSPL = max(map(len, sourcePaths))
-MSLL = len(str(max((source.count(b'\n') for source in sources))))
+MSPL, MSLL = max(map(len, sourcePaths)), len(str(max((source.count(b'\n') for source in sources))))
 
 for sourcePath in sourcePaths:
 
@@ -337,15 +370,12 @@ for sourcePath in sourcePaths:
 
     log(f'PROCESSING SOURCE {COLOR_CYAN}%s' % sourcePath)
 
-    lastCode = lastStr = None
-
-    identifier = None
-    identifierOriginal = None
+    lastLine = lastCode = lastStr = identifier = None
 
     # É sintaxamente possível haver um identifier?
     isIdentifierAllowed = True
 
-    lastLine = None
+    NEXT_STR_IS_LOG_FMT = None
 
     # SELFENIZE_ALLOWED = True
     for code, str_, (sourceLine, sourceCol), *_ in tokenize.tokenize(io.BytesIO(source).readline):
@@ -365,13 +395,9 @@ for sourcePath in sourcePaths:
         putCode, putStr = code, str_
 
         assert (lastStr, str_) not in (
-            ('.', '.'),
-            ('.', ','),
-            ('.', '('),
-            ('.', '{'),
-            ('.', '['),
-            ('.', '"'),
-            (',', '.'),
+            ('.', '.'), ('.', ','), (',', '.'),
+            ('.', '('), ('.', '{'), ('.', '['),
+            ('.', '"'), ('.', "'"),
             ('[', '}'), ('[', ')'),
             ('{', ']'), ('{', ')'),
             ('(', ']'), ('(', '}'),
@@ -382,101 +408,103 @@ for sourcePath in sourcePaths:
         #assert not (lastCode != TOKEN_NAME and str_ == '.')
 
         # Para estar começando deveria ter tido algo antes
-        assert not (lastStr == '.' and str_ in ('$', '@',
-            'class', 'def', 'assert',
-            'try', 'continue', 'except',
-            ))
+        assert not (lastStr == '.' and str_ in ('$', '@', 'class', 'def', 'assert', 'try', 'continue', 'except'))
 
+        # TODO: FIXME: teria que ignorar espaços entre uma "coisa. e.outra" -> acumular todos os espaços até en contrar um (, etc??
+        # TODO: FIXME: se está entre parenteses, entao newlines não quebram nomes :/
+        #   vou deixar do jeito que está... e esperar que coisas como algo.seila\noutra_coisa deem erro aqui com os asserts
+
+        # TODO: FIXME: vai ter que lembrar da quantidade de espaços quebrados entre os elementos do identifier para questões de número de linha? :/
         if identifier is not None:
-            assert len(identifier) >= 2
-            assert len(identifierOriginal) >= 1
-            assert identifier.endswith('.')
-            if str_ == '@':
-                PRINTVERBOSE('CONTINUING IDENTIFIER WITH @')
-                identifierOriginal += str_
-                identifier += '__class__.'
-                isIdentifierAllowed = True
+            if str_ == '.':
+                PRINTVERBOSE('CONTINUING IDENTIFIER - SKIPPING DOT')
+                assert code == TOKEN_OPERATOR
                 putCode = None
-            elif str_ == '$':
-                PRINTVERBOSE('CONTINUING IDENTIFIER WITH $')
-                identifierOriginal += str_
-                identifier += 'parent.'
+            elif str_ in ('$', '@'):
+                PRINTVERBOSE('CONTINUING IDENTIFIER')
+                assert (code, str_) in ((TOKEN_ERROR, '$'), (TOKEN_OPERATOR, '@'))
+                identifier.append(str_)
                 isIdentifierAllowed = True
                 putCode = None
             elif code == TOKEN_NAME and str_ not in NON_IDENTIFIERS:
-                PRINTVERBOSE('CONTINUING IDENTIFIER WITH NAME')
+                PRINTVERBOSE('CONTINUING IDENTIFIER')
                 assert isIdentifierAllowed is True
-                identifierOriginal += str_
-                identifier += str_ + '.'
+                identifier.append(str_)
                 isIdentifierAllowed = False # Não pode palavra depois de palavra
                 putCode = None # A palavra está nesse nosso buffer temporário; não escreve ela ainda
-            elif str_ == '.':
-                PRINTVERBOSE('CONTINUING IDENTIFIER - SKIPPING .')
-                identifierOriginal += str_
-                putCode = None
             else: # Terminoiu
-                PRINTVERBOSE('FLUSHING')
-                identifier = identifier[:-1]
-                # Substitutions
-                try:
-                    identifier = repr(constants[identifier])
+                assert identifier
+                PRINTVERBOSE('CONTINUING IDENTIFIER - NOT PART OF IT')
+                identifier = faz(identifier)
+                PRINTVERBOSE('JOINED')
+                try: # Substitutions
+                    identifier = repr(REPLACE[identifier])
                 except KeyError:
                     pass
                 else:
-                    PRINT('SUBSTITUTED BY CONSTANT')
-                tokens.append((TOKEN_NAME, identifier)) # Insere ele antes da próxima coisa
+                    PRINT('REPLACED')
+
+                *obj, method = identifier.rsplit('.', 1)
+                # NOTE: quando implementar em C, pode passar None como objeto ao invés de task =]
+                obj, = (obj if obj else ('TASK',))
+
+                if method in ('dbg', 'log', 'warn', 'err'):
+                    NEXT_STR_IS_LOG_FMT = (sourcePath, sourceLine, ('dbg', 'log', 'warn', 'err').index(method))
+                    putCode, putStr = TOKEN_NAME, f'LOG_({len(LOGFMTS)},id({obj})'
+                else: # Insere ele antes deste
+                    tokens.append((TOKEN_NAME, identifier))
                 # finalizando o identifier =] - ver se é um objeto.dbg() :O
-                identifier = None
-                identifierOriginal = None
-                isIdentifierAllowed = None
-        elif str_ == '$': # and lastStr in (']', '@', '$')
+                identifier =  None
+                # TODO: FIXME: tem que quebrar essas inserções em tokens? nome dot, nome, etc? :/
+        elif str_ in ('$', '@') or (isIdentifierAllowed is True and code == TOKEN_NAME and str_ not in (*KEYWORDS, *OPERATORS, *BUILTIN_TYPES, *BUILTIN_FUNCTIONS, *BUILTIN_CONSTANTS, *MODULES)):
             # Note que podemos ter um $ mesmo que não possamos ter um identifier - ex nome $ nome2
-            PRINTVERBOSE('STARTING IDENTIFIER BY $')
-            assert identifier is None
-            assert identifierOriginal is None
-            identifierOriginal = str_
-            identifier = 'self.'
-            putCode = None
-        elif str_ == '@':
-            PRINTVERBOSE('STARTING IDENTIFIER BY @')
-            assert identifier is None
-            assert identifierOriginal is None
-            identifierOriginal = str_
-            identifier = 'self.__class__.'
-            putCode = None
-        elif isIdentifierAllowed is True and code == TOKEN_NAME and str_ not in (*KEYWORDS, *OPERATORS, *BUILTIN_TYPES, *BUILTIN_FUNCTIONS, *BUILTIN_CONSTANTS, *MODULES):
-            PRINTVERBOSE('STARTING IDENTIFIER BY NAME')
-            assert code == TOKEN_NAME
-            assert not is_blank(str_)
-            assert isIdentifierAllowed is True
-            assert identifier is None
-            assert identifierOriginal is None
-            assert isIdentifierAllowed is True
-            identifierOriginal = str_
-            identifier = str_ + '.'
+            PRINTVERBOSE('STARTING IDENTIFIER')
+            assert str_ in ('$', '@') or (code == TOKEN_NAME and isIdentifierAllowed is True)
+            identifier = [str_]
             putCode = None
         elif code == TOKEN_STRING:
             if str_.startswith('f'):
-                putStr = fstringer(str_) #repr()
+                #str_ = fstringer(str_) #repr()
+                # coloca o que for constante dentro da própria literal
+                # ('=P' '\x1b[31m"ewfwegwegew\'wefw!{1}' 's2' f'{x}' '\x1b[0m' 'xD')
+                putStr = '(' + ' '.join([( repr(REPLACE[x2]) if (x2 := x[1:-1].strip()) in REPLACE else ('f' if '{' in x else '') + repr(''.join([faz([t for t in re.split(r'([$@.])', t) if t and t != '.']) for t in re.split(r'([\s\[\]\(\)"+%*/-])', x) if t]))) for x in re.split(r'([{][^}]*[}])',  str_[2:-1]) if x]) + ')'
+                #'(' + ' '.join([( repr(REPLACE[x2]) if (x2 := x[1:-1].strip()) in REPLACE else ('f' if '{' in x else '') +repr(x)) for x in re.split(r'([{][^}]*[}])',  str_[2:-1]) if x]) + ')'
+
+            if NEXT_STR_IS_LOG_FMT:
+                LOGFMTS.append((*NEXT_STR_IS_LOG_FMT, eval(putStr)))
+                NEXT_STR_IS_LOG_FMT = None
+                putCode = None
         else:
             PRINTVERBOSE('NOT STARTING/CONTINUING IDENTIFIER / NOT STRING')
-            assert identifier is None
-            assert identifierOriginal is None
+            assert NEXT_STR_IS_LOG_FMT is None
 
-        # quebra de linha, encoding/começo de arquivo
-        isIdentifierAllowed = code in (TOKEN_NL, TOKEN_NEWLINE, TOKEN_INDENT, TOKEN_DEDENT, TOKEN_ERROR, TOKEN_ENDMARKER) or str_ in (
-            '$', '@',
-            '[', ']', '(', ')', '{', '}', ':', ';', '<', '>', '>=', '<=',
-            '=', '~', '+', '-', '/', '*', '%', '&', '|', '^', '~', '.', ':', ',', '==', '**',
-            'as', 'is', 'from', 'in',
+        if code == TOKEN_NEWLINE:
+            PRINTVERBOSE('IDENTIFIER ALLOWED BY LINE')
+            assert identifier is None
+            isIdentifierAllowed = True
+        elif str_ in ('$', '@',
+            '[', ']', '(', ')', '{', '}', ':', ';', '<', '>', '<=', '>=', '=', '~', '+', '-', '/', '*', '%', '&', '|', '^', '~', '.', ':', ',', '==', '**', ':=',
+            'as', 'is', 'from', 'in', 'not', 'and',
             'def', 'class', 'while',
             'except', 'raise', 'await', 'global',
             'return', 'yield',
             'assert', 'if', 'elif', 'else', 'while', 'for',
             'del', '#',
-            )
+            ):
+            PRINTVERBOSE('IDENTIFIER ALLOWED BY OPERATOR')
+            isIdentifierAllowed = True
+        elif code in (TOKEN_NL, TOKEN_INDENT, TOKEN_DEDENT, TOKEN_COMMENT):
+            if isIdentifierAllowed is True:
+                PRINTVERBOSE('IDENTIFIER STILL ALLOWED')
+            else:
+                PRINTVERBOSE('IDENTIFIER STILL NOT ALLOWED')
+                assert isIdentifierAllowed is False
+        else:
+            PRINTVERBOSE('IDENTIFIER NOT ALLOWED ANYMORE')
+            isIdentifierAllowed = False
 
-        # s eé comment, identifier anula
+        # quebra de linha, encoding/começo de arquivo
+        #isIdentifierAllowed = code in (TOKEN_NEWLINE, TOKEN_INDENT, TOKEN_DEDENT, TOKEN_ENDMARKER) or
 
         assert not (is_blank(str_) and code not in (
             TOKEN_NL,
@@ -486,8 +514,6 @@ for sourcePath in sourcePaths:
             TOKEN_ENDMARKER,
             TOKEN_ERROR,
             ))
-
-        # assert # and COMMENT
 
         if putCode is not None:
             tokens.append((putCode, putStr))
@@ -499,6 +525,8 @@ for sourcePath in sourcePaths:
     source = None
 
 log(f'TOKENS: {COLOR_CYAN}%d' % len(tokens))
+
+tokens[1] = (TOKEN_NAME, ';'.join((f'LOGFMTS={LOGFMTS}', *(f'{k}={repr(v)}' for k,v in REPLACE.items()))) )
 
 tokens = tokenize.untokenize(tokens)
 
@@ -513,7 +541,6 @@ open(outputPath, 'wb').write(tokens)
 # TODO: FIXME: converteos replacements e macros
 # TODO: FIXME: gera o info
 os.system(f'python {outputPath}')
-
 
 # TODO: FIXME: teoricamente seria possível u sar uma linked list dos tokens e ir executando regras :/
 
