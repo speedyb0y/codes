@@ -311,34 +311,26 @@ def ASSERT_EQ(a, b):
 
 # se começa com um . está errado
 
-def faz(identifier):
-    final = None
-    last = None
-    for word in identifier:
-        if final is not None:
-            if word == '$':
+def faz(old):
+    last = new = None
+    for name in old:
+        if new is not None:
+            if name == '$':
                 assert last != '@'
                 if last == '$':
-                    final += '.parent'
-                else:
-                    final += ''
-            elif word == '@':
-                if last == '@':
-                    final += '.parent'
-                else:
-                    final += '.__class__'
+                    new += '.parent'
+            elif name == '@':
+                new += ('.parent' if last == '@' else '.__class__')
             else:
-                #if last in '$@':
-                final += '.'
-                final += word
-        elif word == '$':
-            final = 'self'
-        elif word == '@':
-            final = 'self.__class__'
+                new += '.' + name
+        elif name == '$':
+            new = 'self'
+        elif name == '@':
+            new = 'self.__class__'
         else:
-            final = word
-        last = word
-    return final
+            new = name
+        last = name
+    return new
 
 ASSERT_EQ( faz(['$']) , 'self' )
 ASSERT_EQ( faz(['$', '$']) , 'self.parent' )
