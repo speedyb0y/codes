@@ -53,101 +53,92 @@ tokensNames = {
 
 # palavras especiais que não podem aparecer como identifier
 #'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'has', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield' '~', '+', '-', '/', '*', '%', '&', '|', '^', '~', '.', ',', '==', '**'
-BUILTIN_TYPES = 'bool', 'bytearray', 'bytes', 'dict', 'float', 'int', 'list', 'object', 'set', 'str', 'tuple'
+# 'bool', 'bytearray', 'bytes', 'dict', 'float', 'int', 'list', 'object', 'set', 'str', 'tuple'
 
-BUILTIN_CONSTANTS = (
-    'None',
-    'False',
-    'True',
-    'BaseException',
-    'Exception',
-    'TimeoutError',
-    'KeyError',
-    )
+# 'None',
+# 'False',
+# 'True',
+# 'BaseException',
+# 'Exception',
+# 'TimeoutError',
+# 'KeyError',
 
-BUILTIN_FUNCTIONS = (
-    '__import__',
-    'hasattr',
-    'abs',
-    'isclass',
-    'isinstance',
-    'issubclass',
-    'locals',
-    'all',
-    'any',
-    'ascii',
-    'bin',
-    'breakpoint',
-    'callable',
-    'chr',
-    'classmethod',
-    'compile',
-    'complex',
-    'delattr',
-    'dir',
-    'divmod',
-    'enumerate',
-    'eval',
-    'exec',
-    'filter',
-    'format',
-    'frozenset',
-    'getattr',
-    'globals',
-    'hasattr',
-    'hash',
-    'help',
-    'hex',
-    'id',
-    'input',
-    'isinstance',
-    'issubclass',
-    'iter',
-    'len',
-    'locals',
-    'map',
-    'max',
-    'memoryview',
-    'min',
-    'next',
-    'oct',
-    'open',
-    'ord',
-    'pow',
-    'print',
-    'property',
-    'range',
-    'repr',
-    'reversed',
-    'round',
-    'setattr',
-    'slice',
-    'sorted',
-    'staticmethod',
-    'sum',
-    'super',
-    'type',
-    'vars',
-    'zip',
-    )
+# '__import__',
+# 'hasattr',
+# 'abs',
+# 'isclass',
+# 'isinstance',
+# 'issubclass',
+# 'locals',
+# 'all',
+# 'any',
+# 'ascii',
+# 'bin',
+# 'breakpoint',
+# 'callable',
+# 'chr',
+# 'classmethod',
+# 'compile',
+# 'complex',
+# 'delattr',
+# 'dir',
+# 'divmod',
+# 'enumerate',
+# 'eval',
+# 'exec',
+# 'filter',
+# 'format',
+# 'frozenset',
+# 'getattr',
+# 'globals',
+# 'hasattr',
+# 'hash',
+# 'help',
+# 'hex',
+# 'id',
+# 'input',
+# 'isinstance',
+# 'issubclass',
+# 'iter',
+# 'len',
+# 'locals',
+# 'map',
+# 'max',
+# 'memoryview',
+# 'min',
+# 'next',
+# 'oct',
+# 'open',
+# 'ord',
+# 'pow',
+# 'print',
+# 'property',
+# 'range',
+# 'repr',
+# 'reversed',
+# 'round',
+# 'setattr',
+# 'slice',
+# 'sorted',
+# 'staticmethod',
+# 'sum',
+# 'super',
+# 'type',
+# 'vars',
+# 'zip',
 
-MODULES = (
-    'os',
-    'sys',
-    'random',
-    'time',
-    'asyncio',
-    'aiohttp',
-    'websockets',
-    'collections',
-    'lxml',
-    )
+# 'os',
+# 'sys',
+# 'random',
+# 'time',
+# 'asyncio',
+# 'aiohttp',
+# 'websockets',
+# 'collections',
+# 'lxml',
+
 
 # TODO: FIXME: erro se IDENTIFIER seguido de um nome, que não seja @ ou $, e o último não tenha sido $ ou @
-
-# não podem começar um identifier
-# então não podem vir antes do . e nem serem considerados palavras
-# '0123456789'
 
 # certos builtins podem começar a palavra, mas não continuar
 COLOR_RED         = '\x1b[31m'
@@ -172,17 +163,6 @@ DBG_COLOR  = COLOR_GREEN_BOLD
 LOG_COLOR  = COLOR_GREEN_BOLD
 WARN_COLOR = COLOR_PURPLE_BOLD
 ERR_COLOR  = COLOR_RED_BOLD
-
-# substitui um nome por alguma outra coisa, da forma como está esse valor
-# substitui um nome por um valor constante -> repr(value)
-
-# Tem que resolver de baixo para cima
-# UM -> 1
-# DOIS -> 2
-# TRES -> UM + DOIS
-# print(TRES) -> 3
-
-#constants = {k:repr(v) for k, v in constants.items()}
 
 # SCRIPT OUTPUT SOURCE_0 SOURCE_1 ... SOURCE_N
 assert len(sys.argv) >= 3
@@ -670,9 +650,9 @@ log(f'TOKENS: {COLOR_CYAN}%d' % len(tokens))
 
 # TODO: FIXME: ficará ainda menor se colocar uma lisa de inteiros direto :/ ao  invés d elist ad etuples d einteros
 
-tokens[1] = (TOKEN_NAME, f'logFiles={tuple(sourcePaths)}')
-tokens[3] = (TOKEN_NAME, f'logFmts={tuple(logFmts)}')
-tokens[5] = (TOKEN_NAME, f'logX={tuple(logX)}')
+tokens[1] = TOKEN_NAME, f'logFiles = {tuple(sourcePaths)}'
+tokens[3] = TOKEN_NAME, f'logFmts = {tuple(logFmts)}'
+tokens[5] = TOKEN_NAME, f'logX = {tuple(logX)}'
 
 tokens = tokenize.untokenize(tokens)
 
