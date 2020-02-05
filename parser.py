@@ -333,10 +333,10 @@ for sourcePath, (sourceHash, sourceSize), cacheEntry in zip(sourcePaths, hashes,
 
     logs, tokens = [], []
 
-    lastLine = lastCode = lastStr = identifier = None
-
     # É sintaxamente possível haver um identifier?
     identifierIsAllowed = True
+
+    identifier = None
 
     puttingLog = None
     puttingLogGotFMT = None
@@ -357,31 +357,13 @@ for sourcePath, (sourceHash, sourceSize), cacheEntry in zip(sourcePaths, hashes,
         #  O que acrescentar agora
         putCode, putStr = code, str_
 
-        assert (lastStr, str_) not in (
-            ('.', '.'), ('.', ','), (',', '.'),
-            ('.', '('), ('.', '{'), ('.', '['),
-            ('.', '"'), ('.', "'"),
-            ('[', '}'), ('[', ')'),
-            ('{', ']'), ('{', ')'),
-            ('(', ']'), ('(', '}'),
-            )
-
         # se o último for um ) então podemos ter um PONTo
         # mas não um identifier direto sem ser $@
-        #assert not (lastCode != TOKEN_NAME and str_ == '.')
 
         # Para estar começando deveria ter tido algo antes
-        assert not (lastStr == '.' and str_ in ('$', '@', 'class', 'def', 'assert', 'try', 'continue', 'except'))
-
         assert not (is_blank(str_) and code not in (TOKEN_NL, TOKEN_NEWLINE, TOKEN_INDENT, TOKEN_DEDENT, TOKEN_ENDMARKER, TOKEN_ERROR))
 
         assert code != TOKEN_OPERATOR or str_ in ('%', '&', '(', ')', '*', '**', '+', ',', '-', '.', '/', ':', ':=', ';', '<', '<=', '=', '==', '!=', '>', '>=', '[', ']', '^', '{', '|', '}', '~', '^=', '|=', '&=', '+=', '-=', '//', '//=', '/=', '*=', '%=', '<<', '>>', '@'), str_
-
-        # TODO: FIXME: teria que ignorar espaços entre uma "coisa. e.outra" -> acumular todos os espaços até en contrar um (, etc??
-        # TODO: FIXME: se está entre parenteses, entao newlines não quebram nomes :/
-        #   vou deixar do jeito que está... e esperar que coisas como algo.seila\noutra_coisa deem erro aqui com os asserts
-
-        # Depois de operadores e dessas keywords, vai poder começar um identifier
 
         # se é operador tem que ter sido lido como tal
         # assert  code == TOKEN_OPERATOR
@@ -425,7 +407,6 @@ for sourcePath, (sourceHash, sourceSize), cacheEntry in zip(sourcePaths, hashes,
                         (TOKEN_OPERATOR, ','),
                         (TOKEN_NAME, obj),
                         ))
-                    putCode = None
 
                 # ERROR_ -> def ERROR_(): raise Err  MESMA COISA QU E O LOG MAS TERMINA EM ERROR
                 # # # # # # # # # # # # # # # elif method == 'error':
@@ -455,36 +436,35 @@ for sourcePath, (sourceHash, sourceSize), cacheEntry in zip(sourcePaths, hashes,
                     PRINTVERBOSE('NORMAL IDENTIFIER')
                     tokens.append((TOKEN_NAME, identifier))
 
-                if code == TOKEN_NEWLINE or str_ in ('(', '%', '&', '*', '**', '+', ',', '-', '/', ':', ':=', ';', '<', '<=', '=', '==', '!=', '>', '>=', '[', '^', '{', '|', '~', '^=', '|=', '&=', '+=', '-=', '//', '//=', '/=', '*=', '%=', 'and', 'as', 'assert', 'await', 'class', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'not', 'or', 'raise', 'return', 'try', 'while', 'with', 'yield', '<<', '>>', 'lambda'):
-                    identifierIsAllowed = True
-                    identifierIsAllowedShortcut = True
-                    identifier =  None
-                elif str_ in ')]}':
-                    identifierIsAllowed = False
-                    identifierIsAllowedShortcut = True
-                    identifier = str_
-                    putCode = None
-                else:
-                    assert False
 
-                # TODO: FIXME: tem que quebrar essas inserções em tokens
+                status = COLOCANDOLOG
+                        aguarda (
+                            ignora espaços
+                            ignora comentários
+                            ignoa newlines
+                        finaliza )
+
+                    o primeiro token deve ser uma strng
+
+                identifier =  None
             elif code == TOKEN_NL:
                 PRINTVERBOSE('CONTINUING IDENTIFIER - NEW LINE')
+                continue
             elif str_ == '.':
                 PRINTVERBOSE('CONTINUING IDENTIFIER - DOT')
                 identifier += str_
                 identifierIsAllowed = True
                 identifierIsAllowedShortcut is True
-                putCode = None
+                continue
             elif str_ in '$@':
                 PRINTVERBOSE('CONTINUING IDENTIFIER - SHORTCUT')
                 assert (code, str_) in ((TOKEN_ERROR, '$'), (TOKEN_OPERATOR, '@'))
                 identifier += str_
                 identifierIsAllowed = True
                 identifierIsAllowedShortcut is True
-                putCode = None
+                continue
             elif code == TOKEN_ERROR and str_ == ' ':
-                pass
+                continue
             else:
                 PRINTVERBOSE('CONTINUING IDENTIFIER - NORMAL WORD')
                 assert str_.strip()
@@ -493,8 +473,9 @@ for sourcePath, (sourceHash, sourceSize), cacheEntry in zip(sourcePaths, hashes,
                 identifier += str_
                 identifierIsAllowed = None
                 identifierIsAllowedShortcut is True
-                putCode = None # A palavra está nesse nosso buffer temporário; não escreve ela ainda
-        elif code == TOKEN_NUMBER:
+                continue
+
+        if code == TOKEN_NUMBER:
             PRINTVERBOSE('NUMBER')
             assert identifier is None
             identifierIsAllowed = None
@@ -502,7 +483,7 @@ for sourcePath, (sourceHash, sourceSize), cacheEntry in zip(sourcePaths, hashes,
         elif code == TOKEN_NL:
             PRINTVERBOSE('IGNORING NEW LINE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
             assert identifier is None
-            putCode = None
+            continue
         elif code in (TOKEN_INDENT, TOKEN_DEDENT, TOKEN_ENCODING):
             PRINTVERBOSE('BLANK')
             assert identifier is None
@@ -522,7 +503,7 @@ for sourcePath, (sourceHash, sourceSize), cacheEntry in zip(sourcePaths, hashes,
             identifier = str_
             identifierIsAllowed = None
             identifierIsAllowedShortcut = True
-            putCode = None
+            continue
         elif str_ == '$':
             PRINTVERBOSE('STARTING IDENTIFIER BY $')
             assert code == TOKEN_ERROR
@@ -531,7 +512,7 @@ for sourcePath, (sourceHash, sourceSize), cacheEntry in zip(sourcePaths, hashes,
             identifier = '$'
             identifierIsAllowed = True
             identifierIsAllowedShortcut = True
-            putCode = None
+            continue
         elif str_ == '@':
             PRINTVERBOSE('STARTING IDENTIFIER BY @')
             assert code == TOKEN_OPERATOR
@@ -540,7 +521,7 @@ for sourcePath, (sourceHash, sourceSize), cacheEntry in zip(sourcePaths, hashes,
             identifier = '@'
             identifierIsAllowed = True
             identifierIsAllowedShortcut = True
-            putCode = None
+            continue
         elif code == TOKEN_NAME:
             PRINTVERBOSE('STARTING IDENTIFIER BY NORMAL WORD')
             assert identifier is None
@@ -548,9 +529,11 @@ for sourcePath, (sourceHash, sourceSize), cacheEntry in zip(sourcePaths, hashes,
             identifier = str_
             identifierIsAllowed = None
             identifierIsAllowedShortcut = True
-            putCode = None
+            continue
         elif code == TOKEN_STRING:
             PRINTVERBOSE('STRING')
+            identifierIsAllowed = None
+            identifierIsAllowedShortcut = False
             if str_.startswith('f'):
                 PRINTVERBOSE('FSTRING')
                 assert puttingLogGotFMT is None or puttingLogGotFMT is True
@@ -565,13 +548,11 @@ for sourcePath, (sourceHash, sourceSize), cacheEntry in zip(sourcePaths, hashes,
                     fmt = LOG_FMT_MAP[fmt] = len(LOG_FMT_MAP)
                 logs.append((*puttingLog, fmt))
                 puttingLogGotFMT = True
-                putCode = None
-            identifierIsAllowed = None
-            identifierIsAllowedShortcut = False
+                continue
         elif code == TOKEN_COMMENT:
             PRINTVERBOSE('COMMENT')
             assert identifier is None
-            putCode = None
+            continue
         elif code == TOKEN_NEWLINE: # TODO: FIXME: ele nao destá deixando ter comentários entre os parenteses de um log() por exemplo
             PRINTVERBOSE('LINE ENDED')
             assert identifier is None
@@ -617,10 +598,7 @@ for sourcePath, (sourceHash, sourceSize), cacheEntry in zip(sourcePaths, hashes,
                         # # # # (TOKEN_NAME, 'Err'),
                         # # # # ))
 
-        if putCode is not None:
-            tokens.append((putCode, putStr))
-
-        lastCode, lastStr, lastLine = code, str_, sourceLine
+        tokens.append((putCode, putStr))
 
     cacheEntry[0] = sourceHash
     cacheEntry[1] = logs # [(offset,line,level,fmtID)]
