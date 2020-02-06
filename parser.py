@@ -3,6 +3,8 @@
 # NOTE: $.something won't be converted, and will result in parsing error =]
 #
 
+# else pode sim ser seguido de identifier em (...  if ... else IDENTIFIER)
+
 import sys
 import os
 import collections
@@ -18,10 +20,17 @@ def is_blank(_):
     return all((_ in ' \n\r\t\v') for _ in _)
 
 def log(fmt, *values):
-    print(f'{LOG_COLOR}{fmt}{COLOR_RESET}' % values)
+    print(f'{LOG_COLOR}{fmt.replace("%s", f"{COLOR_CYAN}%s{LOG_COLOR}")}{COLOR_RESET}' % values)
+
+def dbg(fmt, *values):
+    print(f'{DBG_COLOR}{fmt}{COLOR_RESET}' % values)
 
 def err(fmt, *values):
     print(f'{ERR_COLOR}{fmt}{COLOR_RESET}' % values)
+
+if True:
+    def dbg(*_):
+        pass
 
 TOKEN_ENCODING  = tokenize.ENCODING
 TOKEN_ERROR     = tokenize.ERRORTOKEN
@@ -275,7 +284,7 @@ ASSERT_EQ( fstringer(r'f"HTTP/1.1\r\n\r\n"'), r"'HTTP/1.1\r\n\r\n'" )
 # TODO: FIXME: fstrings rf'' fr''
 
 def PRINTVERBOSE(*_):
-    print(f'{sourcePath}:{sourceLine}', *_)
+    pass
 
 hash_ = '|'.join((str((_ := os.stat(sys.argv[0])).st_size), str(int(_.st_mtime)), *sourcePaths))
 
@@ -309,25 +318,24 @@ for sourcePath, (sourceHash, sourceSize), cacheEntry in zip(sourcePaths, hashes,
 
     sourceHashOld, _, _ = cacheEntry
 
-    log(f'CHECKING SOURCE {COLOR_CYAN}%s' % sourcePath)
-
     if sourceHashOld == sourceHash:
-        log('UNCHANGED')
+        log('SOURCE FILE %s IS UNCHANGED', sourcePath)
         continue
 
-    log('LOADING FILE')
+    log('RELOADING SOURCE FILE %s', sourcePath)
 
     try:
         tokensOrig = open(sourcePath, 'rb').read()
-        assert len(tokensOrig) == sourceSize
     except FileNotFoundError:
-        err('FAILED TO LOAD FILE - FILE NOT FOUND')
+        err('FAILED TO OPEN FILE - FILE NOT FOUND')
         exit(1)
     except:
-        err('FAILED TO LOAD FILE')
+        err('FAILED TO OPEN/READ FILE')
         raise
 
-    log('TOKENIZING')
+    if len(tokensOrig) != sourceSize:
+        err('FILE SIZE MISMATCH')
+        exit(1)
 
     tokensOrig = [(line, code, str_) for code, str_, (line, _), *_ in tokenize.tokenize(io.BytesIO(tokensOrig).readline)]
 
@@ -336,47 +344,75 @@ for sourcePath, (sourceHash, sourceSize), cacheEntry in zip(sourcePaths, hashes,
     # É sintaxamente possível haver um identifier?
     identifierIsAllowed = True
 
-    identifier = None
+    identifier = identifierLast = logLine = logLevel = logOffset = logFMT = logBrackets = MEXERICO = None
 
-    puttingLog = None
-    puttingLogGotFMT = None
-
-    MEXERICO = None
-
-    errorBrackets= errorStatus = None
-
-    for sourceLine, code, str_ in tokensOrig:
+    for sourceLine, code, token in tokensOrig:
 
         try:
             tokenThisName = tokensNames[code]
         except KeyError:
             err('UNKNOWN TOKEN CODE')
-            print((code, str_, sourceLine))
+            print((code, token, sourceLine))
             exit(1)
-
-        #  O que acrescentar agora
-        putCode, putStr = code, str_
 
         # se o último for um ) então podemos ter um PONTo
         # mas não um identifier direto sem ser $@
 
         # Para estar começando deveria ter tido algo antes
-        assert not (is_blank(str_) and code not in (TOKEN_NL, TOKEN_NEWLINE, TOKEN_INDENT, TOKEN_DEDENT, TOKEN_ENDMARKER, TOKEN_ERROR))
+        assert not (is_blank(token) and code not in (TOKEN_NL, TOKEN_NEWLINE, TOKEN_INDENT, TOKEN_DEDENT, TOKEN_ENDMARKER, TOKEN_ERROR))
 
-        assert code != TOKEN_OPERATOR or str_ in ('%', '&', '(', ')', '*', '**', '+', ',', '-', '.', '/', ':', ':=', ';', '<', '<=', '=', '==', '!=', '>', '>=', '[', ']', '^', '{', '|', '}', '~', '^=', '|=', '&=', '+=', '-=', '//', '//=', '/=', '*=', '%=', '<<', '>>', '@'), str_
+        assert code != TOKEN_OPERATOR or token in ('%', '&', '(', ')', '*', '**', '+', ',', '-', '.', '/', ':', ':=', ';', '<', '<=', '=', '==', '!=', '>', '>=', '[', ']', '^', '{', '|', '}', '~', '^=', '|=', '&=', '+=', '-=', '//', '//=', '/=', '*=', '%=', '<<', '>>', '@'), token
 
         # se é operador tem que ter sido lido como tal
         # assert  code == TOKEN_OPERATOR
-        PRINTVERBOSE(tokenThisName, '-->', repr(str_))
+        # print(tokenThisName, repr(token), '        ', f'{sourcePath}:{sourceLine}')
+        PRINTVERBOSE(f'{sourcePath}:{sourceLine} {tokenThisName} {repr(token)}')
+
+        assert code == TOKEN_OPERATOR or token != '@'
+        assert code == TOKEN_ERROR or token != '$'
+
+        assert code == TOKEN_OPERATOR or token not in ('@', '.', '!=', '%', '%=', '&', '&=', '(', '*', '**', '*=', '+', '+=', ',', '-', '-=', '/', '//', '//=', '/=', ':', ':=', ';', '<', '<<', '<=', '=', '==', '>', '>=', '>>', '[', ']', '^', '^=', '{', '|', '|=', '}', '~')
+        assert code != TOKEN_OPERATOR or token in ('@', '.', '!=', '%', '%=', '&', '&=', '(', '*', '**', '*=', '+', '+=', ',', '-', '-=', '/', '//', '//=', '/=', ':', ':=', ';', '<', '<<', '<=', '=', '==', '>', '>=', '>>', '[', ']', '^', '^=', '{', '|', '|=', '}', '~', ')')
 
         if code == TOKEN_COMMENT:
-            PRINTVERBOSE('COMMENT', repr(str_))
+            dbg('IGNORING COMMENT')
+            PRINTVERBOSE(f'   -> SKIPPED')
             continue
+
+        if code == TOKEN_NL:
+            dbg('IGNORING NEW LINE')
+            PRINTVERBOSE(f'   -> SKIPPED')
+            continue
+
+        if code == TOKEN_ENCODING:
+            dbg('IGNORING ENCODING')
+            PRINTVERBOSE(f'   -> SKIPPED')
+            continue
+
+        if code == TOKEN_ERROR and token == ' ':
+            dbg('IGNORING')
+            PRINTVERBOSE(f'   -> SKIPPED')
+            continue
+
+        if code == TOKEN_ENDMARKER: # TODO: FIXME: substituir por newline? :/
+            dbg('IGNORING')
+            PRINTVERBOSE(f'   -> SKIPPED')
+            continue
+
+        if code == TOKEN_STRING:
+            if token.startswith('f'):
+                dbg('F-STRING')
+                token = fstringer(token)
+            else:
+                dbg('STRING')
 
         # TODO: FIXME: vai ter que lembrar da quantidade de espaços quebrados entre os elementos do identifier para questões de número de linha? :/
         if identifier is not None: #  or (code == TOKEN_NL and not identifierInners)
-            if code == TOKEN_NEWLINE or str_ in ('%', '&', '(', ')', '*', '**', '+', ',', '-', '/', ':', ':=', ';', '<', '<=', '=', '==', '!=', '>', '>=', '[', ']', '^', '{', '|', '}', '~', '^=', '|=', '&=', '+=', '-=', '//', '//=', '/=', '*=', '%=', 'and', 'as', 'assert', 'await', 'class', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'not', 'or', 'raise', 'return', 'try', 'while', 'with', 'yield', '<<', '>>', 'lambda'):
-                PRINTVERBOSE('IDENTIFIER ALREADY ENDED', repr(identifier))
+            if token in ('assert', 'await', 'class', 'def', 'raise', 'return', 'try', 'while', 'with', 'yield', 'except', 'finally', 'lambda'):
+                err('UNEXPECTED TOKEN')
+                exit(1)
+            if code == TOKEN_NEWLINE or token in ('%', '&', '/=', '//=', '(', ')', '*', '**', '+', ',', '-', '/', ':', ':=', ';', '<', '<=', '=', '==', '!=', '>', '>=', '[', ']', '^', '{', '|', '}', '~', '^=', '|=', '&=', '+=', '-=', '//', '//=', '/=', '*=', '%=', 'and', 'as',  'del', 'elif', 'else', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'not', 'or', '<<', '>>'):
+                dbg('IDENTIFIER ENDED %s', repr(identifier))
                 assert identifier
 
                 identifier = faz(identifier)
@@ -384,221 +420,183 @@ for sourcePath, (sourceHash, sourceSize), cacheEntry in zip(sourcePaths, hashes,
                 if identifier == 'self.__class__.classmethod':
                     identifier = '@classmethod'
 
-                PRINTVERBOSE('JOINED', repr(identifier))
+                dbg('IDENTIFIER DECODED %s', repr(identifier))
 
-                *obj, method = identifier.rsplit('.', 1)
-                # NOTE: quando implementar em C, pode passar None como objeto ao invés de task =]
-                obj, = (obj if obj else ('TASK',))
+                try:
+                    obj, method = identifier.rsplit('.', 1)
+                except: # NOTE: quando implementar em C, pode passar None como objeto ao invés de task =]
+                    obj, method = 'TASK', identifier
 
                 # TODO: FIXME: _ASSERT() é só em modo debug
                 # _ASSERT() é sempre fatal, mas só existe em modo debug
                 # ASSERT() é sempre fatal
 
-                if method in ('dbg', 'log', 'warn', 'err'):
-                    PRINTVERBOSE('LOG')
-                    assert code != TOKEN_COMMENT
-                    puttingLog = len(tokens) + 2, sourceLine, ('dbg', 'log', 'warn', 'err').index(method)
-                    puttingLogGotFMT = False
-                    puttingLogError = None
-                    tokens.extend((
-                        (TOKEN_NAME, 'LOG_'),
-                        (TOKEN_OPERATOR, '('),
-                        None,
-                        (TOKEN_OPERATOR, ','),
-                        (TOKEN_NAME, obj),
-                        ))
-
+                if method in ('dbg', 'log', 'warn_dbg', 'warn', 'err_dbg', 'err'):
+                    dbg('IDENTIFIER - LOG')
+                    assert logLine is logOffset is logLevel is logFMT is logBrackets is None
+                    logLine = sourceLine
+                    logLevel = ('dbg', 'log', 'warn_dbg', 'warn', 'err_dbg', 'err').index(method)
                 # ERROR_ -> def ERROR_(): raise Err  MESMA COISA QU E O LOG MAS TERMINA EM ERROR
-                # # # # # # # # # # # # # # # elif method == 'error':
-                    # # # # # # # # # # # # # # # PRINTVERBOSE('ERROR !!!!!!!!!!!!')
-                    # # # # # # # # # # # # # # # assert code != TOKEN_COMMENT
-                    # # # # # # # # # # # # # # # puttingLog = len(tokens) + 2, sourceLine, 3
-                    # # # # # # # # # # # # # # # puttingLogGotFMT = False
-                    # # # # # # # # # # # # # # # puttingLogError = True
-                    # # # # # # # # # # # # # # # # # errorStatus = 'AFTER_KEYWORD'
-                    # # # # # # # # # # # # # # # errorBrackets = []
-                    # # # # # # # # # # # # # # # tokens.extend((
-                        # # # # # # # # # # # # # # # (TOKEN_NAME, 'LOG_'),
-                        # # # # # # # # # # # # # # # (TOKEN_OPERATOR, 'PARENT'),
-                        # # # # # # # # # # # # # # # None,
-                        # # # # # # # # # # # # # # # (TOKEN_OPERATOR, ','),
-                        # # # # # # # # # # # # # # # (TOKEN_NAME, obj),
-                        # # # # # # # # # # # # # # # ))
                 elif identifier == 'isclass': # TODO: FIXME: só se for call isclass()
-                    PRINTVERBOSE('ISCLASS')
-                    assert code != TOKEN_COMMENT
+                    dbg('IDENTIFIER - ISCLASS')
+                    MEXERICO=True
                     tokens.extend((
                         (TOKEN_OPERATOR, '('),
                         (TOKEN_OPERATOR, '('),
                         ))
-                    MEXERICO=True
                 else: # Insere ele antes deste
-                    PRINTVERBOSE('NORMAL IDENTIFIER')
+                    dbg('IDENTIFIER - NORMAL')
                     tokens.append((TOKEN_NAME, identifier))
-
-
-                status = COLOCANDOLOG
-                        aguarda (
-                            ignora espaços
-                            ignora comentários
-                            ignoa newlines
-                        finaliza )
-
-                    o primeiro token deve ser uma strng
-
-                identifier =  None
-            elif code == TOKEN_NL:
-                PRINTVERBOSE('CONTINUING IDENTIFIER - NEW LINE')
-                continue
-            elif str_ == '.':
-                PRINTVERBOSE('CONTINUING IDENTIFIER - DOT')
-                identifier += str_
-                identifierIsAllowed = True
-                identifierIsAllowedShortcut is True
-                continue
-            elif str_ in '$@':
-                PRINTVERBOSE('CONTINUING IDENTIFIER - SHORTCUT')
-                assert (code, str_) in ((TOKEN_ERROR, '$'), (TOKEN_OPERATOR, '@'))
-                identifier += str_
-                identifierIsAllowed = True
-                identifierIsAllowedShortcut is True
-                continue
-            elif code == TOKEN_ERROR and str_ == ' ':
-                continue
+                identifierLast = identifier
+                identifier = None
+            elif token in '.$@':
+                dbg('IDENTIFIER CONTINUATION')
+                assert token
+                identifier += token
             else:
-                PRINTVERBOSE('CONTINUING IDENTIFIER - NORMAL WORD')
-                assert str_.strip()
-                assert identifierIsAllowed is True
+                dbg('IDENTIFIER CONTINUATION - NORMAL WORD')
                 assert code == TOKEN_NAME
-                identifier += str_
-                identifierIsAllowed = None
-                identifierIsAllowedShortcut is True
-                continue
+                assert token.strip()
+                assert identifierIsAllowed is True
+                identifier += token
 
-        if code == TOKEN_NUMBER:
-            PRINTVERBOSE('NUMBER')
-            assert identifier is None
+        if identifier is None:
+            if code == TOKEN_NEWLINE: # TODO: FIXME: ele nao destá deixando ter comentários entre os parenteses de um log() por exemplo
+                dbg('NOT STARTING IDENTIFIER - LINE ENDED')
+            elif code in (TOKEN_INDENT, TOKEN_DEDENT):
+                dbg('NOT STARTING IDENTIFIER - IDENTATION')
+            elif code == TOKEN_STRING:
+                dbg('NOT STARTING IDENTIFIER - STRING')
+            elif code == TOKEN_NUMBER:
+                dbg('NOT STARTING IDENTIFIER - NUMBER')
+            elif token == '.':
+                dbg('NOT STARTING IDENTIFIER - DOT')
+                # if # TODO: FIXME: pode estar continuando uma strng, bytes, etc :/
+                    # err('?')
+                    # exit(1)
+            elif token in ('!=', '%', '%=', '&', '&=', '(', '*', '**', '*=', '+', '+=', ',', '-', '-=', '.', '/=', '/', '//', '//=', ':', ':=', ';', '<', '<<', '<<=', '<=', '=', '==', '>', '>=', '>>', '>>=', '[', '^', '^=', 'and', 'as', 'assert', 'async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'has', 'if', 'import', 'in', 'is', 'lambda', 'nonlocal', 'not', 'or', 'pass', 'raise', 'return', 'try', 'while', 'with', 'yield', '{', '|', '|=', '~'):
+                dbg('NOT STARTING IDENTIFIER - KEYWORD/OPERATOR')
+            else:
+                dbg('STARTING IDENTIFIER')
+                assert code == TOKEN_NAME or token in ')]}$@'
+                assert token
+                identifier = token
+
+        if code == TOKEN_STRING:
+            dbg('PASS2 - STRING')
             identifierIsAllowed = None
             identifierIsAllowedShortcut = None
-        elif code == TOKEN_NL:
-            PRINTVERBOSE('IGNORING NEW LINE !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!')
-            assert identifier is None
-            continue
-        elif code in (TOKEN_INDENT, TOKEN_DEDENT, TOKEN_ENCODING):
-            PRINTVERBOSE('BLANK')
-            assert identifier is None
-        elif str_ in ('!=', '%', '%=', '&', '&=', '(', '*', '**', '*=', '+', '+=', ',', '-', '-=', '.', '/', '//', '//=', ':', ':=', ';', '<', '<<', '<<=', '<=', '=', '==', '>', '>=', '>>', '>>=', '[', '^', '^=', 'and', 'as', 'assert', 'await', 'class', 'def', 'del', 'elif', 'else', 'except', 'finally', 'for', 'from', 'global', 'if', 'import', 'in', 'is', 'lambda', 'not', 'or', 'raise', 'return', 'while', 'with', 'yield', '{', '|', '|=', '~'):
-            PRINTVERBOSE('PRE IDENTIFIER')
-            assert identifier is None
+        elif code == TOKEN_NEWLINE:
+            dbg('PASS2 - NEW LINE')
+            assert logLine is logOffset is logLevel is logFMT is logBrackets is None
             identifierIsAllowed = True
             identifierIsAllowedShortcut = True
-        elif str_ in ('async', 'await', 'break', 'class', 'continue', 'def', 'del', 'elif', 'else', 'except', 'finally', 'has', 'nonlocal', 'pass', 'return', 'try', 'while'):
-            PRINTVERBOSE('NON IDENTIFIER')
-            assert identifier is None
+        elif code in (TOKEN_INDENT, TOKEN_DEDENT):
+            dbg('PASS2 - IDENTATION')
+        elif token == '.':
+            dbg('PASS2 - DOT')
+            identifierIsAllowed = True
+            identifierIsAllowedShortcut = None
+        elif token in ')]}':
+            dbg('PASS2 - BRACKETS CLOSE')
+            assert token
             identifierIsAllowed = None
             identifierIsAllowedShortcut = True
-        elif str_ in ')]}':
-            PRINTVERBOSE('STARTING IDENTIFIER BY BRACKETS')
-            assert identifier is None
-            identifier = str_
+        elif token in ('!=', '%', '%=', '&', '&=', '(', '*', '**', '*=', '+', '+=', ',', '-', '-=', '/', '//', '//=', '/=', ':', ':=', ';', '<', '<<', '<=', '=', '==', '>', '>=', '>>', '[', '^', '^=', 'and', 'as', 'assert', 'await', 'class', 'def', 'del', 'elif', 'for', 'from', 'global', 'has', 'if', 'import', 'in', 'is', 'nonlocal', 'not', 'or', 'raise', 'return', 'while', '{', '|', '|=', '~', 'except', 'else', 'yield', 'with', 'lambda'):
+            dbg('PASS2 - PRE IDENTIFIER')
+            identifierIsAllowed = True
+            identifierIsAllowedShortcut = True
+        elif code == TOKEN_NAME and token in ('async', 'break', 'continue', 'finally', 'try', 'pass'):
+            dbg('PASS2 - PRE NO-IDENTIFIER')
             identifierIsAllowed = None
-            identifierIsAllowedShortcut = True
-            continue
-        elif str_ == '$':
-            PRINTVERBOSE('STARTING IDENTIFIER BY $')
-            assert code == TOKEN_ERROR
-            assert identifier is None
-            assert identifierIsAllowedShortcut is True
-            identifier = '$'
-            identifierIsAllowed = True
-            identifierIsAllowedShortcut = True
-            continue
-        elif str_ == '@':
-            PRINTVERBOSE('STARTING IDENTIFIER BY @')
-            assert code == TOKEN_OPERATOR
-            assert identifier is None
-            assert identifierIsAllowedShortcut is True
-            identifier = '@'
-            identifierIsAllowed = True
-            identifierIsAllowedShortcut = True
-            continue
+            identifierIsAllowedShortcut = None
+        elif code == TOKEN_NUMBER:
+            dbg('PASS2 - NUMBER')
+            identifierIsAllowed = None
+            identifierIsAllowedShortcut = None
         elif code == TOKEN_NAME:
-            PRINTVERBOSE('STARTING IDENTIFIER BY NORMAL WORD')
-            assert identifier is None
+            dbg('PASS2 - NAME')
             assert identifierIsAllowed is True
-            identifier = str_
             identifierIsAllowed = None
             identifierIsAllowedShortcut = True
-            continue
-        elif code == TOKEN_STRING:
-            PRINTVERBOSE('STRING')
-            identifierIsAllowed = None
-            identifierIsAllowedShortcut = False
-            if str_.startswith('f'):
-                PRINTVERBOSE('FSTRING')
-                assert puttingLogGotFMT is None or puttingLogGotFMT is True
-                putStr = fstringer(str_)
-            elif puttingLogGotFMT is False:
-                PRINTVERBOSE('IT IS THE LOG FMT')
-                fmt = eval(str_)
-                try:
-                    fmt = LOG_FMT_MAP[fmt]
-                except KeyError:
-                    logFmts.append(fmt)
-                    fmt = LOG_FMT_MAP[fmt] = len(LOG_FMT_MAP)
-                logs.append((*puttingLog, fmt))
-                puttingLogGotFMT = True
-                continue
-        elif code == TOKEN_COMMENT:
-            PRINTVERBOSE('COMMENT')
-            assert identifier is None
-            continue
-        elif code == TOKEN_NEWLINE: # TODO: FIXME: ele nao destá deixando ter comentários entre os parenteses de um log() por exemplo
-            PRINTVERBOSE('LINE ENDED')
-            assert identifier is None
+        elif token in '$@':
+            dbg('PASS2 - SHORTCUT')
+            assert token
+            assert identifierIsAllowedShortcut is True
             identifierIsAllowed = True
             identifierIsAllowedShortcut = True
-            if puttingLog:
-                PRINTVERBOSE('LOG CLOSED')
-                assert puttingLogGotFMT is True
-                puttingLog = None
-                puttingLogGotFMT = None
-                puttingLogError = None
-            assert puttingLog is None
-            assert puttingLogGotFMT is None
         else:
-            assert code == TOKEN_ERROR
-            assert str_ == ' ' # :/
+            err('PASS2 - UNKNOWN')
+            exit(1)
 
-        if MEXERICO is True and str_ == ')':
-            MEXERICO = None
-            tokens.extend((
-                (TOKEN_OPERATOR, ')'),
-                (TOKEN_OPERATOR, ')'),
-                (TOKEN_OPERATOR, '.'),
-                (TOKEN_NAME, '__class__'),
-                (TOKEN_NAME, 'is'),
-                (TOKEN_NAME, 'type'),
-                ))
+        if MEXERICO is True:
+            dbg('ISCLASS')
+            if token == ')':
+                dbg('IS CLASS ENDED')
+                MEXERICO = None
+                tokens.extend((
+                    (TOKEN_OPERATOR, ')'),
+                    (TOKEN_OPERATOR, ')'),
+                    (TOKEN_OPERATOR, '.'),
+                    (TOKEN_NAME, '__class__'),
+                    (TOKEN_NAME, 'is'),
+                    (TOKEN_NAME, 'type'),
+                    ))
 
-        # # # # if errorStatus is not None:
-            # # # # if str_ in '([{':
-                # # # # if errorStatus is 'AFTER_KEYWORD':
-                    # # # # errorStatus = 'INSIDE_CALL'
-                    # # # # assert str_ == '('
-                # # # # errorBrackets.append(str_)
-            # # # # elif str_ in ')]}':
-                # # # # assert errorStatus is 'INSIDE_CALL'
-                # # # # assert errorBrackets.pop() == '([{'[')]}'.index(str_)]
-                # # # # assert identifier == ')'
-                # # # # if not errorBrackets:
-                    # # # # errorStatus = errorBrackets = putCode = tokens.extend((
-                        # # # # (TOKEN_OPERATOR, ';'),
-                        # # # # (TOKEN_NAME, 'raise'),
-                        # # # # (TOKEN_NAME, 'Err'),
-                        # # # # ))
+        if logLine is not None:
+            if logBrackets is None:
+                dbg('LOG CALL STARTED')
+                assert logLine >= 1
+                assert logLevel >= 0
+                assert logFMT is None
+                assert logOffset is None
+                assert token == '('
+                logBrackets = ['(']
+                logOffset = len(tokens) + 2
+                tokens.extend(((TOKEN_NAME, 'LOG_'), (TOKEN_OPERATOR, '('), None, (TOKEN_OPERATOR, ','), (TOKEN_NAME, obj)))
+                token = None
+            elif logFMT is None:
+                dbg('LOG FMT')
+                assert logLine >= 1
+                assert logLevel >= 0
+                assert logFMT is None
+                assert code == TOKEN_STRING
+                assert token.startswith(('"', "'")) # Cannot be an f-string or bytes, or anything else
+                token = eval(token)
+                try:
+                    logFMT = LOG_FMT_MAP[token]
+                except:
+                    logFMT = LOG_FMT_MAP[token] = len(LOG_FMT_MAP)
+                    logFmts.append(token)
+                token = None
+            elif token in '([{':
+                dbg('LOG OPEN BRACKET')
+                assert logLine >= 1
+                assert logLevel >= 0
+                assert logFMT is not None
+                logBrackets.append(token)
+            elif token in ')]}':
+                dbg('LOG CLOSE BRACKET')
+                assert logLine >= 1
+                assert logFMT is not None
+                assert logOffset >= 1
+                assert logBrackets.pop() == '([{'[')]}'.index(token)]
+                if not logBrackets:
+                    dbg('LOG CALL ENDED')
+                    logs.append((logOffset, logLine, logLevel, logFMT))
+                    logLine = logLevel = logOffset = logFMT = logBrackets = None
+            else:
+                dbg('LOG INSIDER')
 
-        tokens.append((putCode, putStr))
+        # raise (Err if LOG_() else Err)
+        if identifier is None:
+            if code is not None and token is not None:
+                PRINTVERBOSE(f'   -> TOKENS')
+                tokens.append((code, token))
+            else:
+                PRINTVERBOSE(f'   -> DROPPED')
+        else:
+            PRINTVERBOSE(f'   -> IDENTIFIER')
 
     cacheEntry[0] = sourceHash
     cacheEntry[1] = logs # [(offset,line,level,fmtID)]
@@ -609,13 +607,14 @@ open('parser-cache.tmp', 'wb').write(cbor.dumps((hash_, logFmts, sources)))
 os.rename('parser-cache.tmp', 'parser-cache')
 
 logX, tokens = [], [
-    (TOKEN_NL, '\n'), (TOKEN_NEWLINE, '\n'),
-    (TOKEN_NL, '\n'), (TOKEN_NEWLINE, '\n'),
-    (TOKEN_NL, '\n'), (TOKEN_NEWLINE, '\n'),
-    (TOKEN_NL, '\n'), (TOKEN_NEWLINE, '\n'),
-    (TOKEN_NL, '\n'), (TOKEN_NEWLINE, '\n'),
-    (TOKEN_NL, '\n'), (TOKEN_NEWLINE, '\n'),
-    (TOKEN_NL, '\n'), (TOKEN_NEWLINE, '\n'),
+    (TOKEN_ENCODING, 'utf-8'),
+    (TOKEN_NEWLINE, '\n'),
+    (TOKEN_NEWLINE, '\n'),
+    (TOKEN_NEWLINE, '\n'),
+    (TOKEN_NEWLINE, '\n'),
+    (TOKEN_NEWLINE, '\n'),
+    (TOKEN_NEWLINE, '\n'),
+    (TOKEN_NEWLINE, '\n'),
     ]
 
 for fileID, (_, logs, tokens_) in enumerate(sources):
