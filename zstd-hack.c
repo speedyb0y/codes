@@ -426,3 +426,20 @@ int main (void) {
 
     return inFD == FD_ERR || outFD == FD_ERR;
 }
+
+
+// cria descomprimido
+// fseek(outFD, header->size)
+// mmap()
+// decompres in thread buffers
+// lista os iovecs disponíveis
+// pwritev
+//      se o ultimo ainda nao terminou, arrasta para trás
+//
+
+
+// mmap
+// cada thread vai lendo
+// se ainda nao chegou no offset deste, espera chegar
+//  a thread com a posição atual, mantem o lock e desloca quando depender de outra!!!
+//      xD
