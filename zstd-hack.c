@@ -1,6 +1,11 @@
 /*
     zstd-hack
 
+    Exit status
+        0 - SUCCESS
+        1 - FAILED TO OPEN/CREATE/READ/WRITE STDIN/STDOUT
+        2 - SOME RUNTIME/FATAL ERROR
+
     gcc -Wall -Wextra -fwhole-program -O2 -march=native -pthread -lzstd zstd-hack.c -o zstd-hack
 */
 
@@ -308,18 +313,18 @@ int main (void) {
     const int buffSize = threadsN*buffSize_;
 
     // CHECKS
-    if (inBuffSize  % BLOCK_SIZE) return 1;
-    if (outBuffSize % BLOCK_SIZE) return 1;
+    if (inBuffSize  % BLOCK_SIZE) return 2;
+    if (outBuffSize % BLOCK_SIZE) return 2;
 
-    if (buffSize_    % BLOCK_SIZE) return 1;
-    if (inBuffSize_  % BLOCK_SIZE) return 1;
-    if (outBuffSize_ % BLOCK_SIZE) return 1;
+    if (buffSize_    % BLOCK_SIZE) return 2;
+    if (inBuffSize_  % BLOCK_SIZE) return 2;
+    if (outBuffSize_ % BLOCK_SIZE) return 2;
 
-    if (buffSize % BLOCK_SIZE) return 1;
+    if (buffSize % BLOCK_SIZE) return 2;
 
-    if (BLOCK_SIZE % HEADER_SIZE) return 1;
+    if (BLOCK_SIZE % HEADER_SIZE) return 2;
 
-    if ((512*1024 + 64) >= inBuffSize_) return 1;
+    if ((512*1024 + 64) >= inBuffSize_) return 2;
 
     // offset chunksize
 
@@ -338,15 +343,15 @@ int main (void) {
 
     // CRIA E ABRE O ARQUIVO COMPRESSED
     if ((outFD = open(fname, O_WRONLY | O_CREAT | O_EXCL | O_DIRECT | O_SYNC | O_NOCTTY | O_CLOEXEC, 0444)) == -1)
-        return 1;
+        return 2;
 
     // BUFFER
     if ((buff = malloc_aligned(BLOCK_SIZE, buffSize)) == NULL)
-        return 1;
+        return 2;
 
     // DEIXA O ESPAÇO RESERVADO PARA O HEADER, E JÁ CONFIRMA QUE O ALINHAMENTO, ESCRITA ETC ESTÁ FUNCIONANDO
     if (write(outFD, buff, HEADER_SIZE) != HEADER_SIZE)
-        return 1;
+        return 2;
 
     // TODO: FIXME:
     outSizeWrite = 0.4 * outBuffSize_;
@@ -369,23 +374,23 @@ int main (void) {
     int threadID;
 
     if (pthread_mutex_lock(&inLock))
-        return 1;
+        return 2;
 
     threadID = threadsN;
 
     while (threadID--)
         if (pthread_create(&threads[threadID], NULL, compressor, (void*)(intptr_t)threadID))
-            return 1;
+            return 2;
 
     if (pthread_mutex_unlock(&inLock))
-        return 1;
+        return 2;
 
     // WAIT THEM TO FINISH
     threadID = threadsN;
 
     while (threadID--)
         if (pthread_join(threads[threadID], NULL))
-            return 1;
+            return 2;
 
     // ESCREVE O HEADER
     if (outFD != FD_ERR) {
