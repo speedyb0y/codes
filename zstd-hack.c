@@ -7,6 +7,8 @@
         2 - SOME RUNTIME/FATAL ERROR
 
     gcc -Wall -Wextra -fwhole-program -O2 -march=native -pthread -lzstd zstd-hack.c -o zstd-hack
+
+    TODO: FIXME: colocar um checksum para cada thread, no header
 */
 
 #define _GNU_SOURCE 1
@@ -34,7 +36,10 @@
 
 #include <zstd.h>
 
-#if 0
+#define FD_CLOSED -1
+#define FD_ERR -2
+
+#if 1
 #define dbg(fmt, ...) ({ fprintf(stderr, fmt "\n", ##__VA_ARGS__); })
 #else
 #define dbg(fmt, ...) ({})
@@ -64,6 +69,65 @@ typedef unsigned long long int uintll;
 
 typedef long long int intll;
 
+#define ALIGNED(value, alignment) ((((value) + (alignment) - 1) / (alignment)) * (alignment))
+
+#define HEADER_SIZE 4096
+#define BLOCK_SIZE 4096
+
+#define MAGIC 0xFFFFFFFFFFFFFFFFULL
+#define CHECK (sizeof(Header) + offsetof(Header, checksum))
+
+typedef struct HeaderThread {
+    u64 remainingSize;
+    u64 checksum;
+} HeaderThread;
+
+typedef struct Header {
+    u64 magic;
+    u64 check;
+    u64 time; // em milésimos de segundo
+    u64 random;
+    u64 blockSize;
+    u64 blocks;
+    u64 compression; // COMPRESSION FORMAT
+    u64 dictOffset; // APÓS TODA A COMPRESSÃO
+    u64 dictSize; // DICTIONARY SIZE
+    u64 size; // ORIGINAL SIZE
+    u64 checksum; // DESTE HEADER
+    u64 threadsN; // NUMBER OF THREADS
+    HeaderThread threads[]; // REMAINING SIZES + CHECKSUMS    - CALCULAR NA HORA O TAMANHO TOAL DOREMAININGS E ALINHAR
+} Header; // seguido pelo dict
+
+typedef struct ThreadResult {
+    void* remaining;
+    int remainingSize;
+    u64 checksum;
+} ThreadResult;
+
+static void* buff_;
+
+static u64 inOffset;
+
+static volatile sig_atomic_t inFD;
+static volatile sig_atomic_t outFD;
+
+static int buffSize_;
+static int inBuffSize_; // per thread
+static int outBuffSize_;
+
+static int outSizeFlush_;
+
+static pthread_mutex_t inLock = PTHREAD_MUTEX_INITIALIZER;
+static pthread_mutex_t outLock = PTHREAD_MUTEX_INITIALIZER;
+
+#define _RET_ERR ({ printf("!!! THREAD ERR %d\n", __LINE__); return THREAD_ERROR; })
+//#define _RET_ERR return THREAD_ERROR
+
+#define THREAD_SUCCESS 0
+#define THREAD_ERROR 1 // SÃO TODOS ERROS FATAIS
+
+// TODO: FIXME: CPU affinity
+
 static inline u64 rdtsc(void) {
     uint lo;
     uint hi;
@@ -71,7 +135,7 @@ static inline u64 rdtsc(void) {
     return ((uint64_t)hi << 32) | lo;
 }
 
-static inline void* malloc_aligned (const uintll alignment, const uintll size) {
+static inline void* malloc_aligned (const uintll size, const uintll alignment) {
 
     void* ptr = NULL;
 
@@ -81,100 +145,79 @@ static inline void* malloc_aligned (const uintll alignment, const uintll size) {
     return  ptr;
 }
 
-#define ALIGNED(value, alignment) ((((value) + (alignment) - 1) / (alignment)) * (alignment))
+static void signal_handler(int signal, siginfo_t* signalInfo, void* signalData) {
 
-#define HEADER_SIZE 4096
-#define BLOCK_SIZE 4096
+    switch (signal) {
+        case SIGTERM:
+        case SIGINT:
+            inFD = FD_ERR; // TODO: FIXME: some other value :/
+            break;
+        case SIGUSR1:
+            break;
+        case SIGUSR2:
+            break;
+        case SIGALRM:
+            break;
+        case SIGCHLD: // TODO: FIXME: foi do nosso in/out fd?
+            break;
+        case SIGPIPE:
+            inFD = FD_CLOSED; // TODO: FIXME: some other value para diferenciar de receber 0? :/
+            // TODO: FIXME: identificar qual foi o signal handler
+            break;
+    }
 
-#define MAGIC 0xFFFFFFFFFFFFFFFFULL
-#define CHECK (sizeof(Header) + offsetof(Header, checksum))
-
-typedef struct Header {
-    u64 magic;
-    u64 check;
-    u64 time; // em milésimos de segundo
-    u64 random;
-    u64 blockSize;
-    u64 blocks;
-    u64 threadsN; // NUMBER OF THREADS
-    u64 compression; // COMPRESSION FORMAT
-    u64 dictOffset; // APÓS TODA A COMPRESSÃO
-    u64 dictSize; // DICTIONARY SIZE
-    u64 size; // ORIGINAL SIZE
-    u64 checksum; // DESTE HEADER
-} Header; // seguido pelo dict
-
-static void* buff;
-
-static u64 inOffset;
-
-static int inFD;
-static int outFD;
-
-static int buffSize_;
-static int inBuffSize_; // per thread
-static int outBuffSize_;
-
-static int outSizeWrite;
-
-static pthread_mutex_t inLock = PTHREAD_MUTEX_INITIALIZER;
-static pthread_mutex_t outLock = PTHREAD_MUTEX_INITIALIZER;
-
-#define FD_CLOSED -1
-#define FD_ERR -2
-
-#define _RET_ERR ({ printf("!!! THREAD ERR %d\n", __LINE__); return THREAD_ERROR; })
-//#define _RET_ERR return THREAD_ERROR
-
-#define THREAD_SUCCESS 0
-#define THREAD_ERROR 1 // SÃO TODOS ERROS FATAIS
+    (void)signalInfo;
+    (void)signalData;
+}
 
 static inline int compressor_(const int threadID) {
 
-    u64 checksum = 0;
-
-    void* const in = buff + threadID*(inBuffSize_ + outBuffSize_);
-    void* const out = buff + threadID*(inBuffSize_ + outBuffSize_) + inBuffSize_;
+    void* const in  = buff_ + threadID*buffSize_;
+    void* const out = buff_ + threadID*buffSize_ + inBuffSize_;
 
     int inSize = 0; // O QUANTO JÁ TEM NO BUFFER DE ENTRADA
 
-    u32*  const outSize_      = out;
-    u32*  const outChecksum   = out + sizeof(u32);
-    u8*   const outThreadID   = out + sizeof(u32) + sizeof(u32);
-    void* const outCompressed = out + sizeof(u32) + sizeof(u32) + sizeof(u8);
-
     // O QUANTO JÁ TEM NO BUFFER DE SAÍDA
-    int outSize = sizeof(u32) + sizeof(u32) + sizeof(u8);
-
-    //
-    *outThreadID = threadID;
+    int outSize = sizeof(u16);
 
     ZSTD_CCtx* const cctx = ZSTD_createCCtx();
+
+    if (cctx == NULL)
+        return THREAD_ERROR;
+
     // TODO: FIXME:
-    ZSTD_CCtx_setParameter(cctx, ZSTD_c_compressionLevel, 11);
+    ZSTD_CCtx_setParameter(cctx, ZSTD_c_compressionLevel, 18);
     ZSTD_CCtx_setParameter(cctx, ZSTD_c_checksumFlag, 1);
 
-    do {
+    u64 offsetLast = 0;
+
+    while (inFD >= 0) {
 
         // SE ESTÁ QUERENDO LER, TEM QUE TER ESPAÇO
         if ((int)(inSize + 16) >= inBuffSize_)
             _RET_ERR;
-        if ((outSize + 512) >= outBuffSize_)
+        if ((outSize + 1024) >= outBuffSize_)
             _RET_ERR;
 
         // LÊ DA STREAM
         if(pthread_mutex_lock(&inLock))
             _RET_ERR;
 
-        if (inFD >= 0) { int received;
-            if ((received = read(inFD, in + inSize + sizeof(u64) + sizeof(u32), inBuffSize_ - inSize - sizeof(u64) - sizeof(u32))) > 0) {
-                *(u64*)(in + inSize) = inOffset; inSize += sizeof(u64); // POE ONDE ESTÁ ESTE CHUNK
-                *(u32*)(in + inSize) = received; inSize += sizeof(u32); // POE O TAMANHO QUE LEU
-                inSize += received; // AGORA SIM CONSIDERA ISSO TUDO
-                inOffset += received; // A PRÓXIMA LIDA ESTARÁ NESTE NOVO OFFSET
-            } elif (received) {
-                dbg("READ ERROR");
-                inFD = FD_ERR;
+        if (inFD >= 0) { int size;
+            if ((size = read(inFD, in + inSize + sizeof(u32) + sizeof(u32), inBuffSize_ - inSize - sizeof(u32) - sizeof(u32))) > 0) {
+                if ((inOffset - offsetLast) >= 0xFFFFFFFFULL) // TODO: FIME: manter uma variavel threadAtrasada, threadAtrasadaOffset, e um lock; lockar, ver se é a pior, setar ; quando uma ver que a  outra esta muito atrasada, manter o lock; {a que está atrasada, lendo o atrasadaFD SEM LOCK, ver que é == ela mesma, dar o release se o (threadAdiantada - self->offset) - 0xFFFFFFFFULL } |||
+                    _RET_ERR;
+                *(u32*)(in + inSize) = inOffset - offsetLast; inSize += sizeof(u32); // ONDE ESTÁ ESTE CHUNK
+                *(u32*)(in + inSize) = size;                  inSize += sizeof(u32); // TAMANHO DESTE CHUNK
+                inSize += size; // AGORA SIM CONSIDERA ISSO TUDO
+                inOffset += size; // A PRÓXIMA LIDA ESTARÁ NESTE NOVO OFFSET
+                offsetLast = inOffset;
+            } elif (size) {
+                dbg("READ INPUT FAILED/INTERRUPTED");
+                if (errno != EINTR) {
+                    dbg("READ INPUT FAILED");
+                    inFD = FD_ERR;
+                }
             } else {
                 dbg("READ CLOSED");
                 inFD = FD_CLOSED;
@@ -187,7 +230,7 @@ static inline int compressor_(const int threadID) {
         if (inFD < 0)
             break;
 
-        if (inSize >= (512*1024)) {
+        if (inSize >= (128*1024)) {
             // COMPRESS
 
             if (inSize > inBuffSize_)
@@ -217,19 +260,21 @@ static inline int compressor_(const int threadID) {
             if (outSize > outBuffSize_)
                 _RET_ERR;
 
-            if (outSize >= outSizeWrite) {
+            if (outSize >= outSizeFlush_) {
+
+                if (outSize > (0b111111111111 * BLOCK_SIZE)) // TODO: FIXME: não incluir o tamanho deste header u16 :/
+                    _RET_ERR;
 
                 const int outSizeAligned = (outSize / BLOCK_SIZE) * BLOCK_SIZE;
 
                 if (outSizeAligned % BLOCK_SIZE)
                     _RET_ERR;
 
-                *outSize_ = outSizeAligned;
-                *outChecksum = checksum; // TODO: FIXME: checksum of the compressed
+                *(u16*)out = (threadID << 12) | (outSizeAligned / BLOCK_SIZE);
 
                 if (pthread_mutex_lock(&outLock))
                     _RET_ERR;
-                if (write(outFD, out, outSizeAligned) != outSizeAligned)
+                if (write(outFD, out, outSizeAligned) != outSizeAligned) // TODO: FIXME: HANDLE SIGNALS
                     outFD = inFD = FD_ERR; // SE O OUT ESTÁ RUIM, PARA DE CONSUMIR O IN
                 if (pthread_mutex_unlock(&outLock))
                     _RET_ERR;
@@ -237,18 +282,18 @@ static inline int compressor_(const int threadID) {
                 // TIRA O QUE FOI, FICANDO O REMAINING
                 outSize -= outSizeAligned;
                 // MOVE O REMAINING PARA DEPOIS DO COMPRESSED SIZE
-                memmove(outCompressed, out + outSizeAligned, outSize);
+                memmove(out + sizeof(u16), out + outSizeAligned, outSize);
                 // CONSIDERA O RESTANTE
-                outSize += outCompressed - out;
+                outSize += sizeof(u16);
             }
         }
-
-    } while (inFD >= 0);
+    }
 
     // NÃO TEM MAIS NADA PARA LER
 
+    // FLUSH O QUE TEM QUE COMPRIMIR
     if (inSize) {
-        // COMPRESS
+
         ZSTD_inBuffer input = { in, inSize, 0 }; // BUFF, BUFF_SIZE, OFFSET
         ZSTD_outBuffer output = { out, outBuffSize_, outSize };
 
@@ -265,29 +310,48 @@ static inline int compressor_(const int threadID) {
 
         //
         outSize = output.pos;
-
-        *outThreadID |= 0b10000000U; // MARCA QUE ESTE É O ÚLTIMO
-        *outSize_ = outSize; // SÓ ESSE TAMANHO QUE IMPORTA
-        *outChecksum = checksum; // NOTA: É COMPUTADO ALINHADO AO QUE FOI ESCRITO
-
-        // PODE FICAR ALGO A MAIS NO FINAL
-        const int outSizeAligned = ((outSize + BLOCK_SIZE - 1) / BLOCK_SIZE) * BLOCK_SIZE;
-
-        if (pthread_mutex_lock(&outLock))
-            _RET_ERR;
-        if (write(outFD, out, outSizeAligned) != outSizeAligned)
-            outFD = inFD = FD_ERR; // SE O OUT ESTÁ RUIM, PARA DE CONSUMIR O IN
-        if (pthread_mutex_unlock(&outLock))
-            _RET_ERR;
     }
+
+    int outSizeAligned = outSize;
+
+    // FLUSH O QUE TEM QUE ESCREVER
+    if (outSizeAligned != sizeof(u16)) {
+        outSizeAligned /= BLOCK_SIZE;
+        outSizeAligned *= BLOCK_SIZE;
+
+        if (outSizeAligned) {
+
+            *(u16*)out = (threadID << 12) | (outSizeAligned / BLOCK_SIZE);
+
+            if (pthread_mutex_lock(&outLock))
+                _RET_ERR;
+            if (write(outFD, out, outSizeAligned) != outSizeAligned) // TODO: FIXME: HANDLE SIGNALS
+                outFD = inFD = FD_ERR; // SE O OUT ESTÁ RUIM, PARA DE CONSUMIR O IN
+            if (pthread_mutex_unlock(&outLock))
+                _RET_ERR;
+        }
+    } else  {
+        outSize = 0;
+        outSizeAligned = 0;
+    }
+
+    // DEIXA O PONTEIRO DO REMAINING E O TAMANHO DELE
+    ThreadResult* const result = in;
+
+    result->remaining     = out     + outSizeAligned;
+    result->remainingSize = outSize - outSizeAligned;
+    result->checksum      = 0;
+
+    dbg("THREAD %d SUCCESS - RESULT @ %p REMAINING SIZE %d CHECKSUM %016llX OFFSET LAST %lld", threadID, (void*)result, result->remainingSize, (uintll)result->checksum, (uintll)offsetLast);
 
     return THREAD_SUCCESS;
 }
 
 static void* compressor (void* threadID_) {
-    if (compressor_((intptr_t)threadID_))
+    if (compressor_((int)(intptr_t)threadID_)) {
+        dbg("THREAD %d FAILED", (int)(intptr_t)threadID_);
         inFD = FD_ERR;
-    return NULL;
+    } return NULL;
 }
 
 // TODO: FIXME:
@@ -298,14 +362,44 @@ static void* compressor (void* threadID_) {
 // if (fd <= STDERR_FILENO) close(fd), abrir o arquivo if(fd != filefd) dup2(,)  executar o comando
 int main (void) {
 
-    int threadsN = 5;
+
+    // INSTALA O SIGNAL HANDLER
+    inFD = FD_ERR;
+    outFD = FD_ERR;
+
+    struct sigaction action;
+
+    memset(&action, 0, sizeof(action));
+    action.sa_sigaction = signal_handler;
+    action.sa_flags = SA_SIGINFO;
+
+    if (sigaction(SIGTERM,   &action, NULL) ||
+        sigaction(SIGUSR1,   &action, NULL) ||
+        sigaction(SIGUSR2,   &action, NULL) ||
+        sigaction(SIGIO,     &action, NULL) || // SIGPOLL
+        sigaction(SIGURG,    &action, NULL) ||
+        sigaction(SIGPIPE,   &action, NULL) ||
+        sigaction(SIGPROF,   &action, NULL) ||
+        sigaction(SIGHUP,    &action, NULL) ||
+        sigaction(SIGQUIT,   &action, NULL) ||
+        sigaction(SIGINT,    &action, NULL) ||
+        sigaction(SIGCHLD,   &action, NULL) ||
+        sigaction(SIGALRM,   &action, NULL) ||
+        sigaction(SIGCONT,   &action, NULL) ||
+        sigaction(SIGVTALRM, &action, NULL)
+        ) return 2; // fatal("FAILED TO INSTALL SIGNAL HANDLER")
+
+    int threadsN = 8;
 
     int inBuffSize = 128*1024*1024;
-    int outBuffSize = 64*1024*1024;
+    int outBuffSize = 96*1024*1024;
 
     // PER THREAD SIZES
     inBuffSize_  = ALIGNED(inBuffSize  / threadsN, BLOCK_SIZE);
     outBuffSize_ = ALIGNED(outBuffSize / threadsN, BLOCK_SIZE);
+
+    // TODO: FIXME:
+    outSizeFlush_ = (0.9 * outBuffSize_) - BLOCK_SIZE;
 
     buffSize_ = inBuffSize_ + outBuffSize_;
 
@@ -324,6 +418,15 @@ int main (void) {
 
     if (BLOCK_SIZE % HEADER_SIZE) return 2;
 
+    if ((outSizeFlush_ + BLOCK_SIZE) > outBuffSize_) return 2;
+    if (outSizeFlush_ >= outBuffSize_) return 2;
+    if (outSizeFlush_ < (2*BLOCK_SIZE)) return 2;
+
+    if (outBuffSize_ > 0xFFFFFF) return 2;
+    if (threadsN > 0b1111111) return 2;
+
+    //if (outSizeFlush_ % HEADER_SIZE) return 2;
+
     if ((512*1024 + 64) >= inBuffSize_) return 2;
 
     // offset chunksize
@@ -337,24 +440,33 @@ int main (void) {
 
     sprintf(fname, "%016llX%016llX", (uintll)time_, (uintll)random);
 
-#if 1
-    printf("%s\n", fname);
-#endif
+    dbg("OUTPUT %s\n", fname);
+    dbg("threadsN %d", threadsN);
+    dbg("inBuffSize %d", inBuffSize);
+    dbg("outBuffSize %d", outBuffSize);
+    dbg("buffSize_ %d", buffSize_);
+    dbg("inBuffSize_ %d", inBuffSize_);
+    dbg("outBuffSize_ %d", outBuffSize_);
+    dbg("buffSize %d", buffSize);
+    dbg("outSizeFlush_ %d", outSizeFlush_);
+    dbg("BLOCK_SIZE %d", BLOCK_SIZE);
 
     // CRIA E ABRE O ARQUIVO COMPRESSED
     if ((outFD = open(fname, O_WRONLY | O_CREAT | O_EXCL | O_DIRECT | O_SYNC | O_NOCTTY | O_CLOEXEC, 0444)) == -1)
         return 2;
 
     // BUFFER
-    if ((buff = malloc_aligned(BLOCK_SIZE, buffSize)) == NULL)
+    void* const buff = malloc_aligned(HEADER_SIZE + buffSize, BLOCK_SIZE);
+
+    if (buff == NULL)
         return 2;
+
+    //
+    buff_ = buff + HEADER_SIZE;
 
     // DEIXA O ESPAÇO RESERVADO PARA O HEADER, E JÁ CONFIRMA QUE O ALINHAMENTO, ESCRITA ETC ESTÁ FUNCIONANDO
-    if (write(outFD, buff, HEADER_SIZE) != HEADER_SIZE)
+    if (write(outFD, buff, HEADER_SIZE) != HEADER_SIZE) // TODO: FIXME: escrever um header mínimo
         return 2;
-
-    // TODO: FIXME:
-    outSizeWrite = 0.4 * outBuffSize_;
 
     // INPUT FD
     inFD = STDIN_FILENO;
@@ -394,10 +506,11 @@ int main (void) {
 
     // ESCREVE O HEADER
     if (outFD != FD_ERR) {
-
-        memset(buff, 0, HEADER_SIZE);
+        dbg("WRITING HEADER AND REMAININGS");
 
         Header* const header = buff;
+
+        memset(header, 0, HEADER_SIZE);
 
         header->magic = MAGIC;
         header->check = CHECK;
@@ -405,15 +518,52 @@ int main (void) {
         header->random = random;
         header->blockSize = BLOCK_SIZE;
         header->blocks = lseek(outFD, 0, SEEK_CUR) / BLOCK_SIZE; // TODO: FIXME:
-        header->threadsN = threadsN;
         header->compression = 0;
         header->dictOffset = 0;
         header->dictSize = 0;
         header->size = inOffset;
+        header->threadsN = threadsN;
+
+        //
+        void* const remainings = buff_;
+        void*       remainingsEnd = remainings;
+
+        int threadID = 0;
+
+        do {
+            const ThreadResult* const result = buff_ + threadID*buffSize_;
+            // COPIA POIS O PRIMEIRO VAI SOBRESCREVER
+            const void* const remaining     = result->remaining;
+            const int         remainingSize = result->remainingSize;
+            const u64 checksum              = result->checksum;
+            dbg("THREAD %d RESULT @ %p REMAINING SIZE %d CHECKSUM 0x%016llX", threadID, (void*)result, remainingSize, (uintll)checksum);
+            // CONCATENA TODOS ELES
+            remainingsEnd = memmove(remainingsEnd, remaining, remainingSize) + remainingSize;
+            // REPASSA O REMAINING SIZE E CHECKSUM PARA O HEADER
+            header->threads[threadID].remainingSize = remainingSize;
+            header->threads[threadID].checksum      = checksum;
+            // PRÓXIMA THREAD
+        } while (++threadID != threadsN);
+
         header->checksum = 0; // TODO: FIXME: CHECKSUM DESTE HEADER
 
-        if (pwrite(outFD, header, HEADER_SIZE, 0) != HEADER_SIZE)
+        int remainingsSize = remainingsEnd - remainings;
+
+        dbg("REMAININGS SIZE %d", remainingsSize);
+
+        remainingsSize = ALIGNED(remainingsSize, HEADER_SIZE);
+
+        dbg("REMAININGS SIZE ALIGNED %d", remainingsSize);
+
+        if (write(outFD, remainings, remainingsSize) != remainingsSize) { // TODO: FIXME: HANDLE SIGNALS - SÓ ENCAPSULAR NUMA FUNÇÃO
+            dbg("FAILED TO WRITE REMAININGS");
             outFD = FD_ERR;
+        } elif (pwrite(outFD, header, HEADER_SIZE, 0) != HEADER_SIZE) { // TODO: FIXME: HANDLE SIGNALS
+            dbg("FAILED TO WRITE HEADER");
+            outFD = FD_ERR;
+        }
+    } else {
+        dbg("NOT WRITING HEADER");
     }
 
     //
@@ -423,10 +573,23 @@ int main (void) {
     // se output foi criado por nós, então fecharmos ele primeiro
     //close(outFD);
     //close(inFD);
+    dbg("INPUT FD: %d %s", inFD, (
+        inFD == FD_CLOSED ? "CLOSED":
+        inFD == FD_ERR    ? "ERROR":
+        inFD == 0         ? "STDIN" :
+        inFD == 1         ? "STDOUT" :
+        inFD == 2         ? "STDERR" :
+        inFD <= 0         ? "INVALID" :
+        ""));
 
-    return inFD == FD_ERR || outFD == FD_ERR;
+    dbg("IN OFFSET: %lld", (uintll)inOffset);
+
+    dbg("OUTPUT FD: %d", outFD);
+
+    int status = inFD == FD_ERR || outFD == FD_ERR;
+    dbg("EXIT STATUS: %d", status);
+    return status;
 }
-
 
 // cria descomprimido
 // fseek(outFD, header->size)
@@ -437,6 +600,8 @@ int main (void) {
 //      se o ultimo ainda nao terminou, arrasta para trás
 //
 
+
+// TODO :FIXME: terminar as demais threads que stão dando um read() :/
 
 // mmap
 // cada thread vai lendo
