@@ -87,6 +87,7 @@ typedef long long int intll;
     //+ ((u64)offsetof(HeaderThread, remainingSize) << 15)
     //+ ((u64)offsetof(HeaderThread, checksum)      << 16)
 
+// TODO: FIXME: enforce um tamanho para isso
 typedef struct Tail {
     u64 magic;
     u64 check;
@@ -100,17 +101,14 @@ typedef struct Tail {
     u32 blocks; // do arquivo comprimido final - juntando blockSize*blocks = 64 bits
     u32 threadInBuffSize;
     u32 threadOutBuffSize;
-    u8 threadsMax;
-    u8 threadsN; // NUMBER OF THREADS
-    u8 chunkODiffSize;
-    u8 chunkSizeSize;
-    u8 cChunkSize;
-    u8 cChunkBits;
-    u8 cChunkBitsSize;
-    u8 cChunkBitsThread;
-    u64 cChunkMask;
-    u64 cChunkMaskThread;
-    u64 cChunkMaskSize;
+    u8  threadsMax;
+    u8  threadsN; // NUMBER OF THREADS
+    u8  chunkODiffSize;
+    u8  chunkSizeSize;
+    u8  reserved;
+    u8  cChunkSize;
+    u8  cChunkBitsSize;
+    u8  cChunkBitsThread;
     u64 endSize;
 } Tail; // seguido pelo dict
 
@@ -177,12 +175,13 @@ static u64  chunkSizeMask    = 0xFFFFFFFFULL;
 static uint chunkSizeSize    = 4;
 
 static uint cChunkSize       = 2;
-static uint cChunkBits       = 16;
 static uint cChunkBitsThread = 5;
 static uint cChunkBitsSize   = 11;
-static uint cChunkMask       = 0b1111111111111111U;
+static uint cChunkMask       = 0b1111111111111111U; // ((1ULL << (cChunkSize    *8)) - 1)
 static uint cChunkMaskThread = 0b0000000000011111U;
-static uint cChunkMaskSize   = 0b1111111111100000U;
+static uint cChunkMaskSize   = 0b1111111111100000U; // TODO: FIXME: não uar isso, usar os n bits direto
+// primeiro LE A PALAVRA
+// DEPOIS EXTRAI ESSES BITS
 
 static void* threadsBuff;
 
@@ -506,6 +505,9 @@ int main (void) {
     dbg("threadBuffSize    %5u",  threadBuffSize);
     dbg("threadInBuffSize  %5u" , threadInBuffSize);
     dbg("threadOutBuffSize %5u",  threadOutBuffSize);
+    dbg("cChunkSize        %u",   cChunkSize);
+    dbg("cChunkBitsSize    %u",   cChunkBitsSize);
+    dbg("cChunkBitsThread  %u",   cChunkBitsThread);
 
     // CHECKS
     if (inBuffSize  % blockSize) return EXIT_FATAL;
@@ -527,11 +529,22 @@ int main (void) {
     // A  ULTIMA THREAD VAI CABER?
     if ((threadsMax - 1) != cChunkMaskThread)
         return EXIT_FATAL;
-    //
-    if (threadsN > threadsMax)
-        return EXIT_FATAL;
 
     if ((512*1024 + 64) >= threadInBuffSize)
+        return EXIT_FATAL;
+
+    //
+    if (!(
+        (threadsN >= 1) &&
+        (threadsN <= threadsMax) &&
+        (cChunkBitsSize >= 1) &&
+        (cChunkBitsThread >= 1) &&
+        ((cChunkBitsSize + cChunkBitsThread) == (cChunkSize*8)) &&
+        (chunkODiffMask   == ((1ULL << (chunkODiffSize*8)) - 1)) &&
+        (cChunkMaskThread == ((1ULL << (cChunkBitsThread)) - 1)) &&
+        (cChunkMaskSize   == (((1ULL << (cChunkBitsSize  )) - 1) << cChunkBitsThread)) &&
+        (cChunkMask       == (cChunkMaskThread ^ cChunkMaskSize))
+        ))
         return EXIT_FATAL;
 
     // offset chunksize
@@ -646,12 +659,9 @@ int main (void) {
         tail->threadsN         = threadsN;
         tail->threadsMax       = threadsMax;
         tail->cChunkSize       = cChunkSize;
-        tail->cChunkBits       = cChunkBits;
+        tail->reserved         = 0;
         tail->cChunkBitsSize   = cChunkBitsSize;
         tail->cChunkBitsThread = cChunkBitsThread;
-        tail->cChunkMask       = cChunkMask;
-        tail->cChunkMaskThread = cChunkMaskThread;
-        tail->cChunkMaskSize   = cChunkMaskSize;
         tail->chunkODiffSize   = chunkODiffSize;
         tail->chunkSizeSize    = chunkSizeSize;
         tail->compression      = 0;
@@ -660,7 +670,7 @@ int main (void) {
         tail->blocks           = outOffset / blockSize;
         tail->threadInBuffSize   = threadInBuffSize;
         tail->threadOutBuffSize  = threadOutBuffSize;
-        tail->endSize           = endSize; // NOTA: transformar no endSizeAligned, ler ele, e ai usar o endSize
+        tail->endSize            = endSize; // NOTA: transformar no endSizeAligned, ler ele, e ai usar o endSize
 
         const u64 endChecksum = 0;
 
