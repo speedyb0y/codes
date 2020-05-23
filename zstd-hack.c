@@ -121,6 +121,13 @@ typedef struct Tail {
     u32 endSize;
 } Tail;
 
+// TODO: FIXME: verificar isso
+#define TAIL_SIZE_MAX      0xFFFFFFFFFFFFFFFFULL
+#define TAIL_BLOCKSIZE_MAX 0xFFFFFFFFU
+#define TAIL_BLOCKS_MAX    0xFFFFFFFFU
+#define TAIL_THREADS_MAX       0xFFFFU
+#define TAIL_ENDSIZE_MAX   0xFFFFFFFFU
+
 typedef struct ThreadResult {
     u64 checksum;
     uint remainingSize;
