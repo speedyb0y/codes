@@ -124,15 +124,16 @@ static void signal_handler(int signal, siginfo_t* signalInfo, void* signalData) 
 #define TYPE_BREAK     0b11111111
 
 typedef struct CBORMap CBORMap;
-typedef struct CBORKey CBORKey;
+typedef struct Key Key;
 
 typedef struct CBORIndex CBORIndex;
 
-struct value {
+// no caso array e map tam bém tem typeSize, mas nao tem hash e nem rc
+struct Value {
     u64 typeSize;  // 0xFFFFF constante
+    u64 rc; // reference count - toda vez que for uma key, um valor mapeado por uma key, uma entrada em uma array, uma entrada no cache
     u64 hash; // hash
     u64 hash2;
-    u64 rc; // reference count - toda vez que for uma key, um valor mapeado por uma key, uma entrada em uma array, uma entrada no cache
     union {
         u64 pos;
         u64 neg;
@@ -143,24 +144,25 @@ struct value {
     };
 };
 
-mapentry {
-  void* value; //
-}
-
-struct CBORMap {
-    u64 typeSize; // TIPO | TOTAL DE ENTRADAS
-    CBORKey* keys[128]; // os heads
+struct {
+    //u64; id do item?
+    u64 typeSize;
+    u64 rc;
+    u64 value; // já é o hash
 };
 
-struct CBORKey {
-    u64 hash;
-    u64 hash2;
-    CBORKey* prev;
-    CBORKey* next;
-    CBORKey** ptr; // array que o contém; mapa que tem este key
-    CBORKey* childs[4];
-    void* value; // valor ao qual esta key está mapeada
-    char _[];
+struct Map {
+    u64 typeSize; // TIPO | TOTAL DE ENTRADAS
+    Key* keys[128]; // os heads
+};
+
+struct Key {
+    Key* prev;
+    Key* next;
+    Key** ptr; // array que o contém; mapa que tem este key
+    Key* childs[4];
+    Value* key;
+    Value* value; // valor ao qual esta key está mapeada
 };
 
 struct CBORIndex { // elemento de uma array
