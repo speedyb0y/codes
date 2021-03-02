@@ -106,15 +106,15 @@ int main (int argsN, char* args[]) {
 
             const int sock = accept4(listening, (SockAddr*)&addr, &addrSize, O_NONBLOCK | SOCK_CLOEXEC);
 
-            if (sock <= 0)
+            if (sock == -1)
                 break;
 
-            if (cltIP && cltIP != addr.sin_addr.s_addr)
+            if (cltIP && cltIP != addr.sin_addr.s_addr) {
+                close(sock);
                 continue;
+            }
 
-            setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
-
-            conns[connsN++] = (uint)sock;
+            setsockopt((conns[connsN++] = (uint)sock), IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
         }
 
         for (uint i = 0; i != connsN; i++)
@@ -125,7 +125,8 @@ int main (int argsN, char* args[]) {
                     conns[i] = 0;
                 }
 
-        sleep(1);
+        // TODO: FIXME: SO DORMIR O QUE FALTAR PARA COMPLETAR TAL INTERVALO
+        sleep(2);
     }
 
     return 0;
