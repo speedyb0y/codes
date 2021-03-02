@@ -52,7 +52,7 @@ static uint str2ip (const char* const str) {
 
 int main (int argsN, char* args[]) {
 
-    char buff[1400] =
+    char buff[65536] =
         "e32453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghreioht5r9jIewgweggewEgjwoighweooyihnfgk"
         "jdjlkeg9043890t347890539809(*&*(*@$*(ewe32453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghreioht5r9jIewgweggew"
         "Egjwoighweooyihnfgkjdjlkeg9043890t347890539809(*&*(*@$*(ewe32453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghre"
@@ -66,80 +66,88 @@ int main (int argsN, char* args[]) {
         "hweooyihnfgkjdjlkeg9043890t347890539809(*&*(*@$*(ewe32453425gw564864640436774eggreg25e321!!23tge23tgewwgegge@we"
         ;
 
-    if (argsN != 6)
+    if (argsN != 5)
         return 1;
 
     const uint cltIP   = str2ip(args[1]);
     const uint srvIP   = str2ip(args[2]);
     const uint srvPort = htons(atoi(args[3]));
-    const uint connsN  = atoi(args[4]);
-    const uint pktsN   = atoi(args[5]);
-
-    u16 conns[connsN]; uint errorsConnect = 0; uint errors = 0;
+    const uint EXP     = atoi(args[4]);
 
     SockAddrIP4 cltAddr = { .sin_family = AF_INET, .sin_port = 0,       .sin_addr = { .s_addr = cltIP } };
     SockAddrIP4 srvAddr = { .sin_family = AF_INET, .sin_port = srvPort, .sin_addr = { .s_addr = srvIP } };
 
-    printf("CONNECTING SOCKETS\n");
-
     const int opt = 1;
 
-    for (uint i = 0; i != connsN; i++) {
+    int conns[65536]; uint connsN = 0, errorsConnect = 0, errors = 0, connecteds = 0;
 
-        if (i % 300 == 0)
-            sleep(1);
+    while (1) {
 
-        const int sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
+        while (connsN != EXP) {
 
-        if (sock <= 0 ||
-            setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt)) ||
-            bind(sock, (SockAddr*)&cltAddr, sizeof(SockAddrIP4)) || // TODO: ONLY IF cltIP
-            connect(sock, (SockAddr*)&srvAddr, sizeof(SockAddrIP4)) != -1 ||
-            errno != EINPROGRESS)
-            abort();
+            const int sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 
-        conns[i] = (uint)sock;
-    }
+            if (sock == -1) {
+                printf("FAILED TO OPEN SOCKET: %s\n", strerror(errno));
+                abort();
+            }
 
-    printf("WAITING CONNECTIONS\n");
+            if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt))) {
+                abort();
+            }
 
-    for (uint i = 0; i != connsN; i++)
-        if (fcntl(conns[i], F_SETFL, fcntl(conns[i], F_GETFL, 0) & ~O_NONBLOCK) ||
-            connect(conns[i], (SockAddr*)&srvAddr, sizeof(SockAddrIP4))) {
-            close(conns[i]);
-            conns[i] = 0;
-            errorsConnect++;
+            if (bind(sock, (SockAddr*)&cltAddr, sizeof(SockAddrIP4))) {
+                printf("FAILED TO BIND SOCKET\n");
+                abort();
+            }
+
+            if (!(connect(sock, (SockAddr*)&srvAddr, sizeof(SockAddrIP4)) == -1 && errno == EINPROGRESS)) {
+                printf("FAILED TO CONNECT()\n");
+                abort();
+            }
+
+            conns[connsN++] = -sock;
+
+            if (connsN % 200 == 0)
+                break;
         }
 
-    printf("TRANSFERRING\n");
+        for (uint i = 0; i != connsN; i++) {
 
-    for (uint count = 0; count != pktsN; count++) {
+            if (conns[i] < 0) {
 
-        printf("#%u WRITE \n", count);
+                if (connect(conns[i], (SockAddr*)&srvAddr, sizeof(SockAddrIP4)) == -1) {
+                    if (errno == EALREADY)
+                        continue; // TODO: FIXME: TIMEOUT?
+                    close(conns[i]);
+                    conns[i] = 0;
+                    errorsConnect++;
+                    continue;
+                }
 
-        for (uint i = 0; i != connsN; i++)
+                conns[i] *= -1;
+                connecteds++;
+            }
+
             if (conns[i])
-                if (write(conns[i], buff, sizeof(buff)) != sizeof(buff)) {
+                if (read(conns[i], buff, sizeof(buff)) == -1 && errno != EAGAIN) {
                     close(conns[i]);
                     conns[i] = 0;
                     errors++;
                 }
 
-        printf("#%u READ \n", count);
-
-        for (uint i = 0; i != connsN; i++)
             if (conns[i])
-                if (read(conns[i], buff, sizeof(buff)) != sizeof(buff)) {
+                if (write(conns[i], buff, 1400) == -1 && errno != EAGAIN) {
                     close(conns[i]);
                     conns[i] = 0;
                     errors++;
                 }
+        }
 
-        printf("\n");
+        printf("CONNS %u CONNECTEDS %u ERRORS %u ERRORS_CONNECT %u ACTIVES %u \n", connsN, connecteds, errors, errorsConnect, connsN - errorsConnect - errors);
+
+        sleep(2);
     }
-
-    printf("ERRORS CONNECT: %u\n", errorsConnect);
-    printf("ERRORS SEND/RECV: %u\n", errors);
 
     // TODO: FIXME: SALVAR NUMERO DE PACOTES, BANDWIDTH, TEMPOS TOTAIS
     // TESTAR O TIMEOUT/KEEP ALIVE, VAI AUMENTANDO O TEMPO ENTRE OS ENVIOS
