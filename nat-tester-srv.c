@@ -117,6 +117,7 @@ int main (int argsN, char* args[]) {
             setsockopt((conns[connsN++] = (uint)sock), IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
         }
 
+        // TODO: FIXME: TOMAR CUIDADO PARA NAO ENCHER O BUFFER DO CLIENTE, ENQUANTO ELE ESTÁ CONNECTANDO
         for (uint i = 0; i != connsN; i++)
             if (conns[i])
                 if ((read(conns[i], buff, sizeof(buff)) == -1 && errno != EAGAIN) ||
