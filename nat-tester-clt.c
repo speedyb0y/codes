@@ -52,7 +52,7 @@ static uint str2ip (const char* const str) {
 
 int main (int argsN, char* args[]) {
 
-    char buff[65536] =
+    static char buff[1*1024*1024] =
         "e32453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghreioht5r9jIewgweggewEgjwoighweooyihnfgk"
         "jdjlkeg9043890t347890539809(*&*(*@$*(ewe32453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghreioht5r9jIewgweggew"
         "Egjwoighweooyihnfgkjdjlkeg9043890t347890539809(*&*(*@$*(ewe32453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghre"
@@ -79,84 +79,120 @@ int main (int argsN, char* args[]) {
 
     const int opt = 1;
 
-    int conns[65536]; uint connsN = 0, errorsConnect = 0, errors = 0, connecteds = 0;
+    int conns[65536]; uint connsN = 0, connectRefused = 0, connectTimeout = 0, errors = 0, connectSuccess = 0;
 
     while (1) {
 
-        while (connsN != EXP) {
+        if (connsN != EXP) {
 
             const int sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
 
             if (sock == -1) {
                 printf("FAILED TO OPEN SOCKET: %s\n", strerror(errno));
-                abort();
+                return 1;
             }
 
             if (setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt))) {
-                abort();
+                printf("FAILED TO SOCKET NO DELAY\n");
+                return 1;
             }
 
             if (bind(sock, (SockAddr*)&cltAddr, sizeof(SockAddrIP4))) {
                 printf("FAILED TO BIND SOCKET\n");
-                abort();
+                return 1;
             }
 
             if (!(connect(sock, (SockAddr*)&srvAddr, sizeof(SockAddrIP4)) == -1 && errno == EINPROGRESS)) {
                 printf("FAILED TO CONNECT()\n");
-                abort();
+                return 1;
             }
 
             conns[connsN++] = -sock;
 
-            if (connsN % 200 == 0)
-                break;
+            if (connsN % 50)
+                continue;
         }
+
+        uint iPkts = 0; uintll iSize = 0;
+        uint oPkts = 0; uintll oSize = 0;
 
         for (uint i = 0; i != connsN; i++) {
 
-            if (conns[i] < 0) {
-
-                if (connect(-conns[i], (SockAddr*)&srvAddr, sizeof(SockAddrIP4)) == -1) {
-                    if (errno == EALREADY)
-                        continue; // TODO: FIXME: TIMEOUT?
-                    close(-conns[i]);
-                    conns[i] = 0;
-                    errorsConnect++;
-                    continue;
-                }
-
-                conns[i] *= -1;
-                connecteds++;
-            }
-
+            if (i % 250 == 0)
+                sleep(1);
 
             // TODO: FIXME: CONTAR QUANTOS DE FATO RECEBERAM NESTE LOOP
             // E DAR TIMEOUT APOS T TEMPO SEM RECEBER X BYTES
             // OU ENTAO SERVIDOR ENVIA A CADA 3 SEGUNDOS,EU RECEBO A CADA 7
 
-            if (conns[i])
-                if (read(conns[i], buff, sizeof(buff)) == -1 && errno != EAGAIN) {
-                    close(conns[i]);
+            if (conns[i] == 0)
+                continue;
+
+            if (conns[i] < 0) {
+
+                if (connect(-conns[i], (SockAddr*)&srvAddr, sizeof(SockAddrIP4)) == -1) {
+                    switch (errno) {
+                        case EALREADY:
+                            continue; // TODO: FIXME: TIMEOUT?
+                        case ETIMEDOUT:
+                            connectTimeout++;
+                            break;
+                        case ECONNREFUSED:
+                            connectRefused++;
+                            break;
+                        default:
+                            printf("CONNECT FAILED - %s\n", strerror(errno));
+                            return 1;
+                    }
+                    close(-conns[i]);
                     conns[i] = 0;
-                    errors++;
+                    continue;
                 }
 
-            if (conns[i])
-                if (write(conns[i], buff, 1400) == -1 && errno != EAGAIN) {
+                conns[i] *= -1;
+                connectSuccess++;
+            }
+
+            const int in = read(conns[i], buff, sizeof(buff));
+
+            if (in == 0) {
+                close(conns[i]);
+                conns[i] = 0;
+                errors++; // TODO: FIXME: CLOSEDS
+                continue;
+            }
+
+            if (in == -1) {
+                if (errno != EAGAIN) {
+                    close(conns[i]);
+                    conns[i] = 0;
+                    errors++;
+                    continue;
+                }
+            } else {
+                iSize += in;
+                iPkts++;
+            }
+
+            const int out = write(conns[i], buff, 1400);
+
+            if (out == -1) {
+                if (errno != EAGAIN) {
                     close(conns[i]);
                     conns[i] = 0;
                     errors++;
                 }
+            } else {
+                oSize += out + 20 + 20 + 8;
+                oPkts++;
+            }
         }
 
-        printf("CONNS %u CONNECTEDS %u ERRORS %u ERRORS_CONNECT %u ACTIVES %u \n", connsN, connecteds, errors, errorsConnect, connsN - errorsConnect - errors);
-
-        sleep(2);
+        printf("%5s | %12s | %12s | %12s | %5s | %7s | %-9s | %-14s | %-9s | %-14s\n", "CONNS", "CONN REFUSED", "CONN TIMEOUT", "CONN SUCCESS", "ERRS", "ACTIVES", "OUT PKTS", "OUT BYTES", "IN PKTS", "IN SIZE");
+        printf("%5u | %12u | %12u | %12u | %5u | %7u | %9u | %14llu | %9u | %14llu \n", connsN, connectRefused, connectTimeout, connectSuccess, errors, connectSuccess - errors, oPkts, oSize, iPkts, iSize);
     }
-
-    // TODO: FIXME: SALVAR NUMERO DE PACOTES, BANDWIDTH, TEMPOS TOTAIS
-    // TESTAR O TIMEOUT/KEEP ALIVE, VAI AUMENTANDO O TEMPO ENTRE OS ENVIOS
-    // TODO: FIXME: CONTAR SEPARADAMENTE OS ERROS SZEOF() DE CONEXÃO
 
     return 0;
 }
+
+// TODO: FIXME: UMA OUTRA VERSÃO, QUE VAI RECRIANDO TODOS OS FD == 0, E RECONNECTANDO OS < 0
