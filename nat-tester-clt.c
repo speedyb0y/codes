@@ -116,10 +116,10 @@ int main (int argsN, char* args[]) {
 
             if (conns[i] < 0) {
 
-                if (connect(conns[i], (SockAddr*)&srvAddr, sizeof(SockAddrIP4)) == -1) {
+                if (connect(-conns[i], (SockAddr*)&srvAddr, sizeof(SockAddrIP4)) == -1) {
                     if (errno == EALREADY)
                         continue; // TODO: FIXME: TIMEOUT?
-                    close(conns[i]);
+                    close(-conns[i]);
                     conns[i] = 0;
                     errorsConnect++;
                     continue;
@@ -128,6 +128,11 @@ int main (int argsN, char* args[]) {
                 conns[i] *= -1;
                 connecteds++;
             }
+
+
+            // TODO: FIXME: CONTAR QUANTOS DE FATO RECEBERAM NESTE LOOP
+            // E DAR TIMEOUT APOS T TEMPO SEM RECEBER X BYTES
+            // OU ENTAO SERVIDOR ENVIA A CADA 3 SEGUNDOS,EU RECEBO A CADA 7
 
             if (conns[i])
                 if (read(conns[i], buff, sizeof(buff)) == -1 && errno != EAGAIN) {
