@@ -106,8 +106,11 @@ int main (int argsN, char* args[]) {
 
             const int sock = accept4(listening, (SockAddr*)&addr, &addrSize, O_NONBLOCK | SOCK_CLOEXEC);
 
-            if (sock == -1)
-                break;
+            if (sock == -1) {
+                if (errno == EAGAIN)
+                    break;
+                abort();
+            }
 
             if (cltIP && cltIP != addr.sin_addr.s_addr) {
                 close(sock);
