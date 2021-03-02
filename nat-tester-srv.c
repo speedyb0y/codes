@@ -52,7 +52,7 @@ static uint str2ip (const char* const str) {
 
 int main (int argsN, char* args[]) {
 
-    char buff[1400] =
+    char buff[65536] =
         "e32453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghreioht5r9jIewgweggewEgjwoighweooyihnfgk"
         "jdjlkeg9043890t347890539809(*&*(*@$*(ewe32453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghreioht5r9jIewgweggew"
         "Egjwoighweooyihnfgkjdjlkeg9043890t347890539809(*&*(*@$*(ewe32453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghre"
@@ -121,7 +121,7 @@ int main (int argsN, char* args[]) {
         for (uint i = 0; i != connsN; i++)
             if (conns[i])
                 if ((read(conns[i], buff, sizeof(buff)) == -1 && errno != EAGAIN) ||
-                    (write(conns[i], buff, sizeof(buff)) == -1 && errno != EAGAIN)) {
+                    (write(conns[i], buff, 1400) == -1 && errno != EAGAIN)) {
                     close(conns[i]);
                     conns[i] = 0;
                 }
