@@ -188,8 +188,8 @@ int main (int argsN, char* args[]) {
             }
         }
 
-        printf("%5s | %12s | %12s | %12s | %5s | %7s | %-9s | %-14s | %-9s | %-14s\n", "CONNS", "CONN REFUSED", "CONN TIMEOUT", "CONN SUCCESS", "ERRS", "ACTIVES", "OUT PKTS", "OUT BYTES", "IN PKTS", "IN SIZE");
-        printf("%5u | %12u | %12u | %12u | %5u | %7u | %9u | %14llu | %9u | %14llu \n", connsN, connectRefused, connectTimeout, connectSuccess, errors, connectSuccess - errors, oPkts, oSize, iPkts, iSize);
+        printf("%5s | %8s | %8s | %9s | %5s | %7s | %-9s | %-14s | %-9s | %-14s\n", "CONNS", "REFUSED", "TIMEOUT", "CONNECTED", "ERRS", "ACTIVES", "OUT PKTS", "OUT BYTES", "IN PKTS", "IN BYTES");
+        printf("%5u | %8u | %8u | %9u | %5u | %7u | %9u | %14llu | %9u | %14llu \n", connsN, connectRefused, connectTimeout, connectSuccess, errors, connectSuccess - errors, oPkts, oSize, iPkts, iSize);
     }
 
     return 0;
