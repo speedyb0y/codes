@@ -75,7 +75,7 @@ int main (int argsN, char* args[]) {
     const uint connsN  = atoi(args[4]);
     const uint pktsN   = atoi(args[5]);
 
-    u16 conns[connsN]; uint errors = 0;
+    u16 conns[connsN]; uint errorsConnect = 0; uint errors = 0;
 
     SockAddrIP4 cltAddr = { .sin_family = AF_INET, .sin_port = 0,       .sin_addr = { .s_addr = cltIP } };
     SockAddrIP4 srvAddr = { .sin_family = AF_INET, .sin_port = srvPort, .sin_addr = { .s_addr = srvIP } };
@@ -86,7 +86,7 @@ int main (int argsN, char* args[]) {
 
     for (uint i = 0; i != connsN; i++) {
 
-        if (i % 150 == 0)
+        if (i % 300 == 0)
             sleep(1);
 
         const int sock = socket(AF_INET, SOCK_STREAM | SOCK_NONBLOCK, 0);
@@ -108,7 +108,7 @@ int main (int argsN, char* args[]) {
             connect(conns[i], (SockAddr*)&srvAddr, sizeof(SockAddrIP4))) {
             close(conns[i]);
             conns[i] = 0;
-            errors++;
+            errorsConnect++;
         }
 
     printf("TRANSFERRING\n");
@@ -138,7 +138,8 @@ int main (int argsN, char* args[]) {
         printf("\n");
     }
 
-    printf("ERRORS: %u\n", errors);
+    printf("ERRORS CONNECT: %u\n", errorsConnect);
+    printf("ERRORS SEND/RECV: %u\n", errors);
 
     // TODO: FIXME: SALVAR NUMERO DE PACOTES, BANDWIDTH, TEMPOS TOTAIS
     // TESTAR O TIMEOUT/KEEP ALIVE, VAI AUMENTANDO O TEMPO ENTRE OS ENVIOS
