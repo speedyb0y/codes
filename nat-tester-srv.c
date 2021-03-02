@@ -52,82 +52,81 @@ static uint str2ip (const char* const str) {
 
 int main (int argsN, char* args[]) {
 
-    if (argsN != 6)
-        return 1;
-
-    const uint cltIP   = str2ip(args[1]);
-    const uint srvIP   = str2ip(args[2]);
-    const uint srvPort = htons(atoi(args[3]));
-    const uint connsN  = atoi(args[4]);
-    const uint pktsN   = atoi(args[5]);
-
-    u16 conns[connsN];
-
-    const int sockListen = socket(AF_INET, SOCK_STREAM, 0);
-
-    if (sockListen == -1)
-        return 1;
-
-    const SockAddrIP4 srvAddr = { .sin_family = AF_INET, .sin_port = srvPort, .sin_addr = { .s_addr = srvIP } };
-
-    if (bind(sockListen, (SockAddr*)&srvAddr, sizeof(SockAddrIP4)))
-        return 1;
-
-    if (listen(sockListen, connsN))
-        return 1;
-
-    const int opt = 1;
-
-    uint count = connsN; u16* conn = conns;
-
-    while (count) {
-
-        SockAddrIP4 addr; socklen_t addrSize = sizeof(addr);
-
-        const int sock = accept4(sockListen, (SockAddr*)&addr, &addrSize, SOCK_CLOEXEC);
-
-        if (sock != -1 && (cltIP == 0 || cltIP == addr.sin_addr.s_addr)) { setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
-            *conn++ = (uint)sock;
-            count--;
-        }
-    }
-
     char buff[1400] =
         "e32453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghreioht5r9jIewgweggewEgjwoighweooyihnfgk"
         "jdjlkeg9043890t347890539809(*&*(*@$*(ewe32453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghreioht5r9jIewgweggew"
         "Egjwoighweooyihnfgkjdjlkeg9043890t347890539809(*&*(*@$*(ewe32453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghre"
         "ioht5r9jIewgweggewEgjwoighweooyihnfgkjdjlkeg9043890t347890539809(*&*(*@$*(ewe32453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t765"
         "7kuymhg;dfwekjghreioht5r9jIewgweggewEgjwoighweooyihnfgkjdjlkeg9043890t347890539809(*&*(*@$*(ewe32453425gww325e321!!23tge23tgewwgegge@"
-        "we#@@4ergaqw54t7657kuymhg;dfwekjghreioht5r9jIewgweggewEgjwoighweooyihnfgkjdjlkeg9043890t347890539809(*&*(*@$*(ewe32453425gww325e321!!"
+        "we#@@4ergaqw54t7657kuymhg;dfweggewEgjwoighweooyihnfgkjdjlkeg9043890t347890539809(*&*(*@$*(ewe32453425gww325e321!!"
         "23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghreioht5r9jIewgweggewEgjwoighweooyihnfgkjdjlkeg9043890t347890539809(*&*(*@$*(ewe32"
         "453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghreioht5r9jIewgweggewEgjwoighweooyihnfgkjdjlkeg9043890t347890539"
         "809(*&*(*@$*(ewe32453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghreioht5r9jIewgweggewEgjwoighweooyihnfgkjdjlke"
         "g9043890t347890539809(*&*(*@$*(ewe32453425gww325e321!!23tge23tgewwgegge@we#@@4ergaqw54t7657kuymhg;dfwekjghreioht5r9jIewgweggewEgjwoig"
-        "hweooyihnfgkjdjlkeg9043890t347890539809(*&*(*@$*(ewe32453425gww325e321!!23tge23tgewwgegge@we"
+        "hweooyihnfgkjdjlkeg9043890t347890539809(*&*(*@$*(ewe32453425gw564864640436774eggreg25e321!!23tge23tgewwgegge@we"
         ;
 
-    uint errors = 0;
-
-    for (uint count = pktsN; count; count--) {
-
-        for (uint i = 0; i != connsN; i++)
-            if (conns[i])
-                if (write(conns[i], buff, sizeof(buff)) != sizeof(buff)) {
-                    close(conns[i]);
-                    conns[i] = 0;
-                    errors++;
-                }
-
-        for (uint i = 0; i != connsN; i++)
-            if (conns[i])
-                if (read (conns[i], buff, sizeof(buff)) != sizeof(buff)) {
-                    close(conns[i]);
-                    conns[i] = 0;
-                    errors++;
-                }
+    if (argsN != 4) {
+        printf("USAGE: %s CLIENT_IP SERVER_IP SERVER_PORT\n", args[0]);
+        return 1;
     }
 
-    printf("ERRORS: %u\n", errors);
+    const uint cltIP   = str2ip(args[1]);
+    const uint srvIP   = str2ip(args[2]);
+    const uint srvPort = htons(atoi(args[3]));
+
+    const int listening = socket(AF_INET, SOCK_NONBLOCK | SOCK_STREAM, 0);
+
+    if (listening == -1) {
+        printf("FAILED TO OPEN SOCKET\n");
+        return 1;
+    }
+
+    const SockAddrIP4 srvAddr = { .sin_family = AF_INET, .sin_port = srvPort, .sin_addr = { .s_addr = srvIP } };
+
+    if (bind(listening, (SockAddr*)&srvAddr, sizeof(SockAddrIP4))) {
+        printf("FAILED TO BIND\n");
+        return 1;
+    }
+
+    if (listen(listening, 65536)) {
+        printf("FAILED TO LISTEN\n");
+        return 1;
+    }
+
+    const int opt = 1;
+
+    u16 conns[65536]; uint connsN = 0;
+
+    while (1) {
+
+        while (connsN != 65536) {
+
+            SockAddrIP4 addr; socklen_t addrSize = sizeof(addr);
+
+            const int sock = accept4(listening, (SockAddr*)&addr, &addrSize, O_NONBLOCK | SOCK_CLOEXEC);
+
+            if (sock <= 0)
+                break;
+
+            if (cltIP && cltIP != addr.sin_addr.s_addr)
+                continue;
+
+            setsockopt(sock, IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
+
+            conns[connsN++] = (uint)sock;
+        }
+
+        for (uint i = 0; i != connsN; i++)
+            if (conns[i])
+                if ((read(conns[i], buff, sizeof(buff)) == -1 && errno != EAGAIN) ||
+                    (write(conns[i], buff, sizeof(buff)) == -1 && errno != EAGAIN)) {
+                    close(conns[i]);
+                    conns[i] = 0;
+                }
+
+        sleep(1);
+    }
 
     return 0;
 }
