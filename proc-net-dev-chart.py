@@ -7,16 +7,16 @@ x = [(int(t), int(ib), int(ip), int(ob), int(op))
             [line.split() for line in  open('SIZES').read().strip().split('\n') if line]      
     ]
 
-
 (tLast, ibLast, ipLast, obLast, opLast), *x = x
 
 t0 = tLast
 ib0 = ibLast
 ob0 = obLast
 
-ts, ibs, obs = [], [], []
-
+ts = []
+ibs = []
 ips = []
+obs = []
 ops = []
 
 itotals = []
@@ -109,6 +109,4 @@ piroca(f, opsizes)
 piroca(g, itotals)
 piroca(h, ototals)
 
-
 matplotlib.pyplot.show()
-
