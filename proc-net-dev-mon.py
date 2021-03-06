@@ -12,7 +12,7 @@ devFD = os.open('/proc/net/dev', os.O_RDONLY)
 FIELDS = []
 ITFCS = []
 
-lasts = [time.clock_gettime(time.CLOCK_BOOTTIME)]
+lasts = [time.clock_gettime(time.CLOCK_BOOTTIME)*100]
 
 fields0, values0, fields1, values1, _ = (line.split()[1:] for line in os.pread(nsFD, 65536, 0).split(b'\n'))
 
@@ -40,8 +40,10 @@ FIELDS.extend(ITFCS)
 
 while True:
 
+    now = time.clock_gettime(time.CLOCK_BOOTTIME)*100
+
     fields = []
-    values = [time.clock_gettime(time.CLOCK_BOOTTIME)]
+    values = [now]
 
     fields0, values0, fields1, values1, _ = (line.split()[1:] for line in os.pread(nsFD, 65536, 0).split(b'\n'))
 
@@ -59,6 +61,7 @@ while True:
 
     assert fields == FIELDS
     assert len(values) == len(lasts)
+    assert (time.clock_gettime(time.CLOCK_BOOTTIME)*100 - now) <= 1000
 
     os.write(1, b''.join((n - o).to_bytes(4, 'little', signed=False) for n, o in zip(values, lasts)))
 
