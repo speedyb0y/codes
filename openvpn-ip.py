@@ -70,7 +70,7 @@ elif what == 'route':
 
         assert 0 == os.system(f'ip route del {dst} table {table}')
     else:
-        assert False
+        raise NotImplemented
 
 elif what == 'addr':
 
@@ -108,7 +108,7 @@ elif what == 'addr':
 
         assert 0 == os.system(f'ip addr del {ip}/32 dev {dev}')
     else:
-        assert False
+        raise NotImplemented
 
 else:
-    assert False
+    raise NotImplemented
