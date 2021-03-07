@@ -9,6 +9,19 @@
 import sys
 import os
 
+def str2ip (ip):
+
+    return sum(x << (24 - n*8) for n, x in enumerate(map(int, ip.split('.'))))
+
+def ip2str (ip):
+
+    return '%d.%d.%d.%d' % (
+        ( ip >> 24),
+        ((ip >> 16) & 0xFF),
+        ((ip >>  8) & 0xFF),
+        ( ip        & 0xFF)
+        )
+
 print('###### ip', sys.argv[1:])
 
 vpnID = int(os.getenv('config')[len('config-'):])
@@ -61,24 +74,35 @@ elif what == 'addr':
         assert len(args) == 3
         assert args[0] == 'dev'
         assert args[1] == dev
+
         ip, netmask = args[2].split('/')
+
         netmask = int(netmask)
+
         assert 1 <= netmask <= 32
-        network = (sum(x << (24 - n*8) for n, x in enumerate(map(int, ip.split('.')))) >> (32 - netmask)) << (32 - netmask)
+
+        network = str2ip(ip)
+        network = ( >> (32 - netmask)) << (32 - netmask)
+
         assert 1 <= network <= 0xFFFFFFFF
-        network = '%d.%d.%d.%d' % ((network >> 24), ((network >> 16) & 0xFF) , (network >> 8) & 0xFF, network & 0xFF)
+
+        network = ip2str(network)
+
         assert 0 == os.system(f'ip addr add {ip}/32 dev {dev}')
         assert 0 == os.system(f'ip route add {network}/{netmask} dev {dev} table {table}')
         assert 0 == os.system(f'ip rule add to   {ip}/32 table {table}')
         assert 0 == os.system(f'ip rule add from {ip}/32 table {table}')
 
     elif cmd == 'del':
+
         # 'ip addr del dev openvpn-0 10.8.8.5/24'
         assert len(args) == 3
         assert args[0] == 'dev'
         assert args[1] == dev
-        ip, _ = args[2].split('/')
-        os.system(f'ip addr del {ip}/32 dev {dev}')
+
+        ip, netmask = args[2].split('/')
+
+        assert 0 == os.system(f'ip addr del {ip}/32 dev {dev}')
     else:
         assert False
 
