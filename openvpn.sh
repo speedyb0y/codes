@@ -27,8 +27,10 @@ function profile() {
     provider=${2}
     auth=${3}
     config=${4}
-    openvpn --mktun --dev-type tun --dev openvpn-${id}
+    #openvpn --mktun --dev-type tun --dev openvpn-${id}
     ip tuntap add mode tun openvpn-${id}
+    ip rule add iif openvpn-${id} table $((500+${id}))
+    ip rule add oif openvpn-${id} table $((500+${id}))
     cat providers/${provider}/auths/${auth} > auth/${id}
     cat providers/${provider}/configs/${config} | grep -v 'nobind' > config/${id}
 }
