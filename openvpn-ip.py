@@ -1,7 +1,5 @@
 #!/usr/bin/python
 
-# OBS.: SE PEGAR O MESMO ENDEREÇO EM MAIS DE UMA VPN, VAI DAR MERDA
-
 import sys
 import os
 
@@ -43,7 +41,7 @@ if what == 'link':
     assert args[0] == 'dev'
     assert args[1] == dev
 
-    os.system(f'ip rule flush table {table}')
+    # # os.system(f'ip rule flush table {table}')
     os.system(f'ip route flush table {table}')
     os.system(f'ip route flush dev {dev}')
     os.system(f'ip addr flush dev {dev}')
@@ -94,8 +92,11 @@ elif what == 'addr':
 
         assert 0 == os.system(f'ip addr add {ip}/32 dev {dev}')
         assert 0 == os.system(f'ip route add {network}/{netmask} dev {dev} table {table}')
-        assert 0 == os.system(f'ip rule add to {ip}/32 table {table}')
-        assert 0 == os.system(f'ip rule add from {ip}/32 table {table}')
+
+        # ASSIM PODE USAR A VPN USANDO BIND COM O ENDEREÇO
+        # OBS.: SE PEGAR O MESMO ENDEREÇO EM MAIS DE UMA VPN, VAI DAR MERDA
+        # assert 0 == os.system(f'ip rule add to {ip}/32 table {table}')
+        # assert 0 == os.system(f'ip rule add from {ip}/32 table {table}')
 
     elif cmd == 'del':
 
