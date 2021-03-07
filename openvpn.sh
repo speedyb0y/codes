@@ -16,17 +16,9 @@ taskset -pac 0-1 $$
 
 chrt --all-tasks --fifo --pid 99 $$
 
-rm -f config
-rm -f auth
-rm -f pid
-
-rm -r -f -- config
-rm -r -f -- auth
-rm -r -f -- pid
-
-mkdir config
-mkdir auth
-mkdir pid
+rm -f -- config auth pid log
+rm -r -f -- config auth pid log
+mkdir config auth pid log
 
 function profile() {
     id=${1}
