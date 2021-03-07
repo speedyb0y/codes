@@ -2,10 +2,6 @@
 
 # OBS.: SE PEGAR O MESMO ENDEREÇO EM MAIS DE UMA VPN, VAI DAR MERDA
 
-# RETIRA O 'nobind'
-# sndbuf 134217728
-# rcvbuf 134217728
-
 import sys
 import os
 
