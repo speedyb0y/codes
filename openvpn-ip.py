@@ -25,8 +25,6 @@ def network_from_ip_netmask (ip, netmask):
 
     return (ip >> hostmask) << hostmask
 
-print('###### ip', sys.argv[1:])
-
 vpn = int(os.getenv('config')[len('config-'):])
 
 dev = f'openvpn-{vpn}'
