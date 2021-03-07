@@ -18,6 +18,15 @@ def ip2str (ip):
         ( ip        & 0xFF)
         )
 
+def network_from_ip_netmask (ip, netmask):
+
+    assert 1 <= ip <= 0xFFFFFFFF
+    assert 1 <= netmask <= 32
+
+    hostmask = 32 - netmask
+
+    return (ip >> hostmask) << hostmask
+
 print('###### ip', sys.argv[1:])
 
 vpnID = int(os.getenv('config')[len('config-'):])
@@ -77,8 +86,7 @@ elif what == 'addr':
 
         assert 1 <= netmask <= 32
 
-        network = str2ip(ip)
-        network = ( >> (32 - netmask)) << (32 - netmask)
+        network = network_from_ip_netmask(str2ip(ip), netmask)
 
         assert 1 <= network <= 0xFFFFFFFF
 
@@ -86,7 +94,7 @@ elif what == 'addr':
 
         assert 0 == os.system(f'ip addr add {ip}/32 dev {dev}')
         assert 0 == os.system(f'ip route add {network}/{netmask} dev {dev} table {table}')
-        assert 0 == os.system(f'ip rule add to   {ip}/32 table {table}')
+        assert 0 == os.system(f'ip rule add to {ip}/32 table {table}')
         assert 0 == os.system(f'ip rule add from {ip}/32 table {table}')
 
     elif cmd == 'del':
