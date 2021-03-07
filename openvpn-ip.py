@@ -11,18 +11,11 @@ import os
 
 print('###### ip', sys.argv[1:])
 
-dev, table = {
-    'br-sao.prod.surfshark.com_udp.ovpn' :  ('tunVPN0', 220),
-    'us-nyc.prod.surfshark.com_udp.ovpn' :  ('tunVPN1', 221),
-    'ar-bua.prod.surfshark.com_udp.ovpn' :  ('tunVPN2', 222),
-    'de-fra.prod.surfshark.com_udp.ovpn' :  ('tunVPN3', 223),
-    'de-ber.prod.surfshark.com_udp.ovpn' :  ('tunVPN4', 224),
-    'py-asu.prod.surfshark.com_udp.ovpn' :  ('tunVPN5', 225),
-    'us-tpa.prod.surfshark.com_udp.ovpn' :  ('tunVPN6', 226),
-    'ca-tor.prod.surfshark.com_udp.ovpn' :  ('tunVPN7', 227),
-    'us-free-05.protonvpn.com.udp.ovpn'  :  ('tunVPN8', 228),
-    'nl-free-09.protonvpn.com.udp.ovpn'  :  ('tunVPN9', 229),
-    }[os.getenv('config')]
+vpnID = int(os.getenv('config')[len('config-'):])
+
+dev = f'openvpn-{vpnID}'
+
+table = 500 + vpnID
 
 what, cmd, *args = sys.argv[1:]
 
@@ -64,7 +57,7 @@ elif what == 'route':
 elif what == 'addr':
 
     if cmd == 'add':
-        # 'ip addr add dev tunSurfsharkBR 10.8.8.8/24'
+        # 'ip addr add dev openvpn-0 10.8.8.8/24'
         assert len(args) == 3
         assert args[0] == 'dev'
         assert args[1] == dev
@@ -80,7 +73,7 @@ elif what == 'addr':
         assert 0 == os.system(f'ip rule add from {ip}/32 table {table}')
 
     elif cmd == 'del':
-        # 'ip addr del dev tunSurfsharkBR 10.8.8.5/24'
+        # 'ip addr del dev openvpn-0 10.8.8.5/24'
         assert len(args) == 3
         assert args[0] == 'dev'
         assert args[1] == dev
