@@ -29,11 +29,11 @@ def network_from_ip_netmask (ip, netmask):
 
 print('###### ip', sys.argv[1:])
 
-vpnID = int(os.getenv('config')[len('config-'):])
+vpn = int(os.getenv('config')[len('config-'):])
 
-dev = f'openvpn-{vpnID}'
+dev = f'openvpn-{vpn}'
 
-table = 500 + vpnID
+table = 500 + vpn
 
 what, cmd, *args = sys.argv[1:]
 
