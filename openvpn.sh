@@ -26,10 +26,9 @@ function profile() {
     auth=${3}
     config=${4}
     openvpn --mktun --dev-type tun --dev openvpn-${id}
-    cat \
-        providers/${provider}/auths/${auth} > auth/${id}
-    grep -v 'nobind' \
-        providers/${provider}/configs/${config} > config/${id}
+    ip tuntap add mode tun openvpn-${id}
+    cat providers/${provider}/auths/${auth} > auth/${id}
+    cat providers/${provider}/configs/${config} | grep -v 'nobind' > config/${id}
 }
 
 profile 0 surfshark will   br-sao.prod.surfshark.com_udp.ovpn
