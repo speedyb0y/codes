@@ -17,33 +17,39 @@ taskset -pac 0-1 $$
 chrt --all-tasks --fifo --pid 99 $$
 
 rm -f config
-rm -f pass
+rm -f auth
 rm -f pid
 
 rm -r -f -- config
-rm -r -f -- pass
+rm -r -f -- auth
 rm -r -f -- pid
 
 mkdir config
-mkdir pass
+mkdir auth
 mkdir pid
 
 function profile() {
-    openvpn --mktun --dev-type tun --dev openvpn-${1}
-    cat ${2} > auth/${1}
-    grep -v 'nobind' ${3} > config/${1}
+    id=${1}
+    provider=${2}
+    auth=${3}
+    config=${4}
+    openvpn --mktun --dev-type tun --dev openvpn-${id}
+    cat \
+        providers/${provider}/auths/${auth} > auth/${id}
+    grep -v 'nobind' \
+        providers/${provider}/configs/${config} > config/${id}
 }
 
-profile 0 pass-surfshark    br-sao.prod.surfshark.com_udp.ovpn
-profile 1 pass-surfshark    us-nyc.prod.surfshark.com_udp.ovpn
-profile 2 pass-surfshark    de-fra.prod.surfshark.com_udp.ovpn
-profile 3 pass-surfshark    de-ber.prod.surfshark.com_udp.ovpn
-profile 4 pass-protonvpn    nl-free-09.protonvpn.com.udp.ovpn
-profile 5 pass-surfshark    py-asu.prod.surfshark.com_udp.ovpn
-profile 6 pass-surfshark    us-tpa.prod.surfshark.com_udp.ovpn
-profile 7 pass-surfshark    ca-tor.prod.surfshark.com_udp.ovpn
-profile 8 pass-protonvpn    us-free-05.protonvpn.com.udp.ovpn
-profile 9 pass-surfshark    ar-bua.prod.surfshark.com_udp.ovpn
+profile 0 surfshark will   br-sao.prod.surfshark.com_udp.ovpn
+profile 1 surfshark will   us-nyc.prod.surfshark.com_udp.ovpn
+profile 2 surfshark will   de-fra.prod.surfshark.com_udp.ovpn
+profile 3 surfshark will   de-ber.prod.surfshark.com_udp.ovpn
+profile 4 protonvpn will   nl-free-09.protonvpn.com.udp.ovpn
+profile 5 surfshark will   py-asu.prod.surfshark.com_udp.ovpn
+profile 6 surfshark will   us-tpa.prod.surfshark.com_udp.ovpn
+profile 7 surfshark will   ca-tor.prod.surfshark.com_udp.ovpn
+profile 8 protonvpn will   us-free-05.protonvpn.com.udp.ovpn
+profile 9 surfshark will   ar-bua.prod.surfshark.com_udp.ovpn
 
 (while : ; do ip route flush dev openvpn-0 ; sleep 1 ; ip addr flush dev openvpn-0 ; sleep 1 ; openvpn --config config/0 --bind --local ${ITFC0_ADDR} --lport 500 --sndbuf $[128*1024*1024] --rcvbuf $[128*1024*1024] --script-security 2 --auth-user-pass auth/0 --dev openvpn-0 --writepid pid/0 --iproute ./ip.py ; sleep 1 ; done) &
 (while : ; do ip route flush dev openvpn-1 ; sleep 1 ; ip addr flush dev openvpn-1 ; sleep 1 ; openvpn --config config/1 --bind --local ${ITFC0_ADDR} --lport 501 --sndbuf $[128*1024*1024] --rcvbuf $[128*1024*1024] --script-security 2 --auth-user-pass auth/1 --dev openvpn-1 --writepid pid/1 --iproute ./ip.py ; sleep 1 ; done) &
