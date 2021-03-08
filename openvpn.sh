@@ -28,13 +28,13 @@ ITFC0_ADDR=192.168.1.3
 ITFC1_ADDR=192.168.200.250
 ITFC2_ADDR=100.64.71.53
 
-taskset -pac 0-1 $$
+taskset -pac 0-23 $$
 
 chrt --all-tasks --fifo --pid 99 $$
 
-rm -f -- config auth pid log status
+rm -f    -- config auth pid log status
 rm -r -f -- config auth pid log status
-mkdir config auth pid log status
+mkdir    -- config auth pid log status
 
 chmod 0700 auth
 
@@ -46,6 +46,7 @@ function VPN() {
     auth=${4}
     config=${5}
 
+    # TODO: FIXME: E QUANTO AO MTU?
     #openvpn --mktun --dev-type tun --dev openvpn-${id}
     ip tuntap add mode tun openvpn-${id}
     ip rule add iif openvpn-${id} table $((500+${id}))
@@ -88,7 +89,7 @@ function VPN() {
     done) > log/${id} 2>&1 &
 }
 
-#   ID  REAL_INTERFACE  PROVIDER    AUTH    CONFIG
+#   ID  INTERFACE       PROVIDER    AUTH    CONFIG
 VPN  0  ${ITFC0_ADDR}   surfshark   will    br-sao.prod.surfshark.com_udp.ovpn
 VPN  1  ${ITFC0_ADDR}   surfshark   will    us-nyc.prod.surfshark.com_udp.ovpn
 VPN  2  ${ITFC0_ADDR}   surfshark   will    de-fra.prod.surfshark.com_udp.ovpn
