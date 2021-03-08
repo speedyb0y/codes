@@ -24,10 +24,6 @@
     #sudo make install
 #)
 
-ITFC0_ADDR=192.168.1.3
-ITFC1_ADDR=192.168.200.250
-ITFC2_ADDR=100.64.71.53
-
 taskset -pac 0-23 $$
 
 chrt --all-tasks --fifo --pid 99 $$
@@ -89,17 +85,22 @@ function VPN() {
     done) > log/${id} 2>&1 &
 }
 
-#   ID  INTERFACE       PROVIDER    AUTH    CONFIG
-VPN  0  ${ITFC0_ADDR}   surfshark   will    br-sao.prod.surfshark.com_udp.ovpn
-VPN  1  ${ITFC0_ADDR}   surfshark   will    us-nyc.prod.surfshark.com_udp.ovpn
-VPN  2  ${ITFC0_ADDR}   surfshark   will    de-fra.prod.surfshark.com_udp.ovpn
-VPN  3  ${ITFC0_ADDR}   surfshark   will    de-ber.prod.surfshark.com_udp.ovpn
-VPN  4  ${ITFC0_ADDR}   protonvpn   will    nl-free-09.protonvpn.com.udp.ovpn
-VPN  5  ${ITFC0_ADDR}   surfshark   will    py-asu.prod.surfshark.com_udp.ovpn
-VPN  6  ${ITFC0_ADDR}   surfshark   will    us-tpa.prod.surfshark.com_udp.ovpn
-VPN  7  ${ITFC0_ADDR}   surfshark   will    es-mad.prod.surfshark.com_udp.ovpn
-VPN  8  ${ITFC0_ADDR}   surfshark   will    fr-par.prod.surfshark.com_udp.ovpn
-VPN  9  ${ITFC0_ADDR}   surfshark   will    ca-tor.prod.surfshark.com_udp.ovpn
-VPN 10  ${ITFC0_ADDR}   protonvpn   will    us-free-05.protonvpn.com.udp.ovpn
-VPN 11  ${ITFC0_ADDR}   surfshark   will    ar-bua.prod.surfshark.com_udp.ovpn
-VPN 12  ${ITFC0_ADDR}   surfshark   will    us-hou.prod.surfshark.com_udp.ovpn
+#
+ISP0_ADDR=192.168.1.3
+ISP1_ADDR=192.168.200.250
+ISP2_ADDR=100.64.71.53
+
+#   ID  ADDRESS        PROVIDER    AUTH    CONFIG
+VPN  0  ${ISP0_ADDR}   surfshark   will    br-sao.prod.surfshark.com_udp.ovpn
+VPN  1  ${ISP0_ADDR}   surfshark   will    us-nyc.prod.surfshark.com_udp.ovpn
+VPN  2  ${ISP0_ADDR}   surfshark   will    de-fra.prod.surfshark.com_udp.ovpn
+VPN  3  ${ISP0_ADDR}   surfshark   will    de-ber.prod.surfshark.com_udp.ovpn
+VPN  4  ${ISP0_ADDR}   protonvpn   will    nl-free-09.protonvpn.com.udp.ovpn
+VPN  5  ${ISP0_ADDR}   surfshark   will    py-asu.prod.surfshark.com_udp.ovpn
+VPN  6  ${ISP0_ADDR}   surfshark   will    us-tpa.prod.surfshark.com_udp.ovpn
+VPN  7  ${ISP0_ADDR}   surfshark   will    es-mad.prod.surfshark.com_udp.ovpn
+VPN  8  ${ISP0_ADDR}   surfshark   will    fr-par.prod.surfshark.com_udp.ovpn
+VPN  9  ${ISP0_ADDR}   surfshark   will    ca-tor.prod.surfshark.com_udp.ovpn
+VPN 10  ${ISP0_ADDR}   protonvpn   will    us-free-05.protonvpn.com.udp.ovpn
+VPN 11  ${ISP0_ADDR}   surfshark   will    ar-bua.prod.surfshark.com_udp.ovpn
+VPN 12  ${ISP0_ADDR}   surfshark   will    us-hou.prod.surfshark.com_udp.ovpn
