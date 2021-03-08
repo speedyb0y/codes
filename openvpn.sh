@@ -24,7 +24,7 @@
     #sudo make install
 #)
 
-taskset -pac 0-23 $$
+taskset -pac 2-64 $$
 
 chrt --all-tasks --fifo --pid 99 $$
 
@@ -45,6 +45,7 @@ function VPN() {
     # TODO: FIXME: E QUANTO AO MTU?
     #openvpn --mktun --dev-type tun --dev openvpn-${id}
     ip tuntap add mode tun openvpn-${id}
+
     ip rule add iif openvpn-${id} table $((500+${id}))
     ip rule add oif openvpn-${id} table $((500+${id}))
 
@@ -60,7 +61,7 @@ function VPN() {
         echo 'sndbuf 134217728'
         echo 'rcvbuf 134217728'
         echo 'script-security 2'
-        grep -v -E '^\s*(nobind|block-outside-dns|up|down|sndbuf|rcvbuf|script-security)(\s|#|$)' providers/${provider}/configs/${config}
+        grep -v -E '^\s*(bind|nobind|local|lport|block-outside-dns|up|down|sndbuf|rcvbuf|script-security|iproute|status|writepid|dev|dev-type|log|auth-user-pass)(\s|#|$)' providers/${provider}/configs/${config}
     ) > config/${id}
 
     (while : ; do
