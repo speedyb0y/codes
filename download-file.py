@@ -37,44 +37,45 @@ KNOWNS = '''
 ./download-file.py - speedtest.tpa.hivelocity.net     80 10GiB.file
 '''
 
-VPNS = tuple(f'openvpn-{vpn}' for vpn in range(13))
-PROXIES = tuple(range(8080, 8089))
+vpns = tuple(f'openvpn-{vpn}' for vpn in range(13))
+
+proxies = tuple(range(8080, 8089))
 
 if len(sys.argv) > 2:
-    _, PROXY, HOSTNAME, PORT, FILE = sys.argv
+    _, proxy, hostname, port, fpath = sys.argv
 else:
-    _, PROXY, HOSTNAME, PORT, FILE = CHOOSE([line.strip().split() for line in KNOWNS.strip().split('\n')])
+    _, proxy, hostname, port, fpath = CHOOSE([line.strip().split() for line in KNOWNS.strip().split('\n')])
 
     if len(sys.argv) != 1:
-        _, PROXY = sys.argv
+        _, proxy = sys.argv
 
-if PROXY == '-':
-    PROXY = CHOOSE([*VPNS, *PROXIES])
+if proxy == '-':
+    proxy = CHOOSE([*vpns, *proxies])
 else:
-    PROXY = (PROXY[1:] if PROXY.startswith('@') else int(PROXY))
+    proxy = (proxy[1:] if proxy.startswith('@') else int(proxy))
 
 # TODO: FIXME: SE NAO FOR PROXY/VPN, DEIXAR QUE SEJA IPv6
-IP = CHOOSE([ip for sockFamily, *_, (ip, *_) in socket.getaddrinfo(HOSTNAME, 443) if sockFamily == socket.AF_INET])
+ip = CHOOSE([ip for sockFamily, *_, (ip, *_) in socket.getaddrinfo(hostname, 443) if sockFamily == socket.AF_INET])
 
-print(PROXY, IP, PORT, HOSTNAME, FILE)
+print(proxy, ip, port, hostname, fpath)
 
 os.close(0)
 os.close(1)
 
 sock = socket.socket()
 
-if isinstance(PROXY, int):
-    sock.connect(('127.0.0.1', PROXY))
-    os.write(0, b''.join((b'\x04\x01', int(PORT).to_bytes(length=2, byteorder='big'), *(int(x).to_bytes(length=1, byteorder='big') for x in IP.split('.')), b'\x00')))
+if isinstance(proxy, int):
+    sock.connect(('127.0.0.1', proxy))
+    os.write(0, b''.join((b'\x04\x01', int(port).to_bytes(length=2, byteorder='big'), *(int(x).to_bytes(length=1, byteorder='big') for x in ip.split('.')), b'\x00')))
     os.read(0, 65536)
 else:
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, PROXY.encode())
-    sock.connect((IP, int(PORT)))
+    sock.setsockopt(socket.SOL_SOCKET, socket.SO_BINDTODEVICE, proxy.encode())
+    sock.connect((ip, int(port)))
 
 os.write(0, (
-    f'GET /{FILE} HTTP/1.0\r\n'
+    f'GET /{fpath} HTTP/1.0\r\n'
     f'Connection: keep-alive\r\n'
-    f'Host: {HOSTNAME}\r\n'
+    f'Host: {hostname}\r\n'
     f'\r\n'
     ).encode())
 os.open('/dev/null', os.O_WRONLY)
