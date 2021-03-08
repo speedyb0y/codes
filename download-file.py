@@ -39,6 +39,7 @@ KNOWNS = '''
 
 vpns = tuple(f'openvpn-{vpn}' for vpn in range(13))
 
+# TODO: FIXME: SUPORTAR protocol/hostname/port
 proxies = tuple(range(8080, 8089))
 
 if len(sys.argv) > 2:
