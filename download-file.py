@@ -77,10 +77,7 @@ os.write(0, (
     f'Host: {HOSTNAME}\r\n'
     f'\r\n'
     ).encode())
-
 os.open('/dev/null', os.O_WRONLY)
-
 os.set_inheritable(0, True)
 os.set_inheritable(1, True)
-
 os.execve('/bin/pv', ('pv', '--buffer-size', '67108864', '--timer', '--bytes', '--interval', '1', '--average-rate', '--rate'), {})
