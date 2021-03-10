@@ -37,9 +37,7 @@ cmdline, args = ' '.join(('ip', *sys.argv[1:])), sys.argv[3:]
 # TODO: FIXME: OS GATEWAYS TAMBÉM DEVEM SER IPS PRIVADOS
 # TODO: FIXME: SÓ PODE SER IPS PRIVADOS
 
-if cmdline.startswith('ip link set'):
-
-    assert f' dev {dev}' in cmdline
+if cmdline.startswith('ip link set dev {dev} '):
 
     os.system(f'ip route flush table {table}')
     assert 0 == os.system(f'ip route flush dev {dev}')
