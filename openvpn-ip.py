@@ -44,8 +44,6 @@ if cmdline.startswith('ip link set dev {dev} '):
     assert 0 == os.system(f'ip addr flush dev {dev}')
     assert 0 == os.system(cmdline)
 
-    exit(0)
-
 elif cmdline.startswith('ip route add '):
     # ip route add 191.96.15.86/32 via 192.168.200.254
 
@@ -54,16 +52,12 @@ elif cmdline.startswith('ip route add '):
     assert _ == 'via'
     assert 0 == os.system(f'ip route add {dst} via {gw} table {table}')
 
-    exit(0)
-
 elif cmdline.startswith('ip route del '):
     # ip route del 45.231.207.66/32
 
     dst, = args
 
     assert 0 == os.system(f'ip route del {dst} table {table}')
-
-    exit(0)
 
 elif cmdline.startswith(f'ip addr add dev {dev}'):
 
@@ -87,8 +81,6 @@ elif cmdline.startswith(f'ip addr add dev {dev}'):
         assert 0 == os.system(f'ip addr add {ip}/32 dev {dev}')
         assert 0 == os.system(f'ip route add {network}/{netmask} dev {dev} table {table}')
 
-        exit(0)
-
         # ASSIM PODE USAR A VPN USANDO BIND COM O ENDEREÇO
         # OBS.: SE PEGAR O MESMO ENDEREÇO EM MAIS DE UMA VPN, VAI DAR MERDA
         # assert 0 == os.system(f'ip rule add to {ip}/32 table {table}')
@@ -107,10 +99,8 @@ elif cmdline.startswith(f'ip addr del dev {dev}'):
 
         ip, netmask = args[2].split('/')
 
-        exit(os.system(f'ip addr del {ip}/32 dev {dev}'))
+        assert 0 == os.system(f'ip addr del {ip}/32 dev {dev}')
 
     else:
         # ip addr del dev tun0 local 10.211.1.253 peer 10.211.1.254
         os.execve('/sbin/ip', sys.argv, {})
-
-exit(1)
