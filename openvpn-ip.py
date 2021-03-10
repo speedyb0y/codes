@@ -112,7 +112,5 @@ elif cmdline.startswith(f'ip addr del dev {dev}'):
     else:
         # ip addr del dev tun0 local 10.211.1.253 peer 10.211.1.254
         os.execve('/sbin/ip', sys.argv, {})
-else:
-    raise NotImplemented
 
 exit(1)
