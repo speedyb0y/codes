@@ -29,52 +29,50 @@ vpn = int(os.getenv('config')[len('config-'):])
 
 dev = f'openvpn-{vpn}'
 
-table = 500 + vpn
+table = 5000 + vpn
 
-what, cmd, *args = sys.argv[1:]
+cmdline, args = ' '.join(('ip', *sys.argv[1:])), sys.argv[3:]
 
-if what == 'link':
+# TODO: NÃO DEIXAR SER UM DOS MEUS IPS
+# TODO: FIXME: OS GATEWAYS TAMBÉM DEVEM SER IPS PRIVADOS
+# TODO: FIXME: SÓ PODE SER IPS PRIVADOS
 
-    assert cmd == 'set'
-    assert args[0] == 'dev'
-    assert args[1] == dev
+if cmdline.startswith('ip link set'):
 
-    # # os.system(f'ip rule flush table {table}')
+    assert f' dev {dev}' in cmdline
+
     os.system(f'ip route flush table {table}')
-    os.system(f'ip route flush dev {dev}')
-    os.system(f'ip addr flush dev {dev}')
+    assert 0 == os.system(f'ip route flush dev {dev}')
+    assert 0 == os.system(f'ip addr flush dev {dev}')
+    assert 0 == os.system(cmdline)
 
-    assert 0 == os.system('ip link set ' + ' '.join(args))
+    exit(0)
 
-elif what == 'route':
+elif cmdline.startswith('ip route add '):
+    # ip route add 191.96.15.86/32 via 192.168.200.254
 
-    if cmd == 'add':
-        # ip route add 191.96.15.86/32 via 192.168.200.254
+    dst, _, gw = args
 
-        dst, _, gw = args
+    assert _ == 'via'
+    assert 0 == os.system(f'ip route add {dst} via {gw} table {table}')
 
-        assert _ == 'via'
+    exit(0)
 
-        assert 0 == os.system(f'ip route add {dst} via {gw} table {table}')
+elif cmdline.startswith('ip route del '):
+    # ip route del 45.231.207.66/32
 
-    elif cmd == 'del':
-        # ip route del 45.231.207.66/32
+    dst, = args
 
-        assert len(args) == 1
+    assert 0 == os.system(f'ip route del {dst} table {table}')
 
-        dst = args[0]
+    exit(0)
 
-        assert 0 == os.system(f'ip route del {dst} table {table}')
-    else:
-        raise NotImplemented
+elif cmdline.startswith(f'ip addr add dev {dev}'):
 
-elif what == 'addr':
+    if '/' in cmdline:
+        # ip addr add dev openvpn-0 10.8.8.8/24
 
-    if cmd == 'add':
-        # 'ip addr add dev openvpn-0 10.8.8.8/24'
         assert len(args) == 3
-        assert args[0] == 'dev'
-        assert args[1] == dev
 
         ip, netmask = args[2].split('/')
 
@@ -91,23 +89,32 @@ elif what == 'addr':
         assert 0 == os.system(f'ip addr add {ip}/32 dev {dev}')
         assert 0 == os.system(f'ip route add {network}/{netmask} dev {dev} table {table}')
 
+        exit(0)
+
         # ASSIM PODE USAR A VPN USANDO BIND COM O ENDEREÇO
         # OBS.: SE PEGAR O MESMO ENDEREÇO EM MAIS DE UMA VPN, VAI DAR MERDA
         # assert 0 == os.system(f'ip rule add to {ip}/32 table {table}')
         # assert 0 == os.system(f'ip rule add from {ip}/32 table {table}')
+    else:
+        # ip addr add dev openvpn-200 local 10.211.1.145 peer 10.211.1.146
+        assert f' dev {dev}' in cmdline
 
-    elif cmd == 'del':
+        os.execve('/sbin/ip', sys.argv, {})
 
-        # 'ip addr del dev openvpn-0 10.8.8.5/24'
+elif cmdline.startswith(f'ip addr del dev {dev}'):
+
+    if '/' in cmdline:
+        # ip addr del dev openvpn-0 10.8.8.5/24
         assert len(args) == 3
-        assert args[0] == 'dev'
-        assert args[1] == dev
 
         ip, netmask = args[2].split('/')
 
-        assert 0 == os.system(f'ip addr del {ip}/32 dev {dev}')
-    else:
-        raise NotImplemented
+        exit(os.system(f'ip addr del {ip}/32 dev {dev}'))
 
+    else:
+        # ip addr del dev tun0 local 10.211.1.253 peer 10.211.1.254
+        os.execve('/sbin/ip', sys.argv, {})
 else:
     raise NotImplemented
+
+exit(1)
