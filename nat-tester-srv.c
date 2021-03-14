@@ -120,17 +120,39 @@ int main (int argsN, char* args[]) {
             setsockopt((conns[connsN++] = (uint)sock), IPPROTO_TCP, TCP_NODELAY, &opt, sizeof(opt));
         }
 
-        // TODO: FIXME: TOMAR CUIDADO PARA NAO ENCHER O BUFFER DO CLIENTE, ENQUANTO ELE ESTÁ CONNECTANDO
-        for (uint i = 0; i != connsN; i++)
-            if (conns[i])
-                if ((read(conns[i], buff, sizeof(buff)) == -1 && errno != EAGAIN) ||
-                    (write(conns[i], buff, 1400) == -1 && errno != EAGAIN)) {
+        for (uint i = 0; i != connsN; i++) {
+
+            if (i % 250 == 0)
+                sleep(1);
+
+            if (conns[i] == 0)
+                continue;
+
+            const int in = read(conns[i], buff, sizeof(buff));
+
+            if (in == 0) {
+                close(conns[i]);
+                conns[i] = 0;
+                continue;
+            }
+
+            if (in == -1) {
+                if (errno != EAGAIN) {
+                    close(conns[i]);
+                    conns[i] = 0;
+                    continue;
+                }
+            }
+
+            if (write(conns[i], buff, 1400) == -1) {
+                if (errno != EAGAIN) {
                     close(conns[i]);
                     conns[i] = 0;
                 }
+            }
+        }
 
-        // TODO: FIXME: SO DORMIR O QUE FALTAR PARA COMPLETAR TAL INTERVALO
-        sleep(2);
+        sleep(1);
     }
 
     return 0;
