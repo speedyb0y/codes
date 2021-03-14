@@ -1,5 +1,8 @@
 /*
 
+    (for x in $(seq 2000) ; do (proxychains -f ~/proxychains.conf bash -c "while : ; do ncat --wait 4 -n --no-shutdown ${XQUOTES_ADDR} 7005 ; sleep 1 ; done" &) ; done) > /dev/null 2>&1
+
+    sudo tcpdump --no-promiscuous-mode -v -n -i enp6s0 -w /tmp/REDE -B $[64*1024]
 */
 
 #define _GNU_SOURCE
@@ -102,14 +105,16 @@ int main (int argsN, char* args[]) {
                 return 1;
             }
 
-            if (!(connect(sock, (SockAddr*)&srvAddr, sizeof(SockAddrIP4)) == -1 && errno == EINPROGRESS)) {
-                printf("FAILED TO CONNECT()\n");
-                return 1;
+            if (connect(sock, (SockAddr*)&srvAddr, sizeof(SockAddrIP4))) {
+                if (errno != EINPROGRESS) {
+                    printf("FAILED TO CONNECT(): %s\n", strerror(errno));
+                    return 1;
+                }
             }
 
             conns[connsN++] = -sock;
 
-            if (connsN % 50)
+            if (connsN % 150)
                 continue;
         }
 
@@ -118,7 +123,7 @@ int main (int argsN, char* args[]) {
 
         for (uint i = 0; i != connsN; i++) {
 
-            if (i % 250 == 0)
+            if (i % 225 == 0)
                 sleep(1);
 
             // TODO: FIXME: CONTAR QUANTOS DE FATO RECEBERAM NESTE LOOP
