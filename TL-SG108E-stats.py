@@ -30,8 +30,8 @@ response = response[:response.index(b'}')]
     _, _
 ) = map(int, re.findall(b'[0-9]{1,}', response))
 
-s0, s1, s2, s3, s4, s5, s6, s7 = (('DISABLED', 'ENABLED')[s] for s in (s0, s1, s2, s3, s4, s5, s6, s7))
-c0, c1, c2, c3, c4, c5, c6, c7 = (('LINK DOWN', '?', '?', '?', '?', '100 FULL', '1000 FULL')[c] for c in (c0, c1, c2, c3, c4, c5, c6, c7))
+s0, s1, s2, s3, s4, s5, s6, s7 = map(('DISABLED', 'ENABLED').__getitem__,  (s0, s1, s2, s3, s4, s5, s6, s7))
+c0, c1, c2, c3, c4, c5, c6, c7 = map(('LINK DOWN', '?', '?', '?', '?', '100 FULL', '1000 FULL').__getitem__, (c0, c1, c2, c3, c4, c5, c6, c7))
 
 print((
         '%15s %15s %14d %14d %14d %14d\n'
