@@ -397,7 +397,7 @@ int main (void) {
     dbg("INITIALIZING ACCEPTS...");
 
     for (uint i = 0; i != CONNECTIONS_ACCEPT_N; i++)
-        acceptedFDs[i] = accept(sockListen, NULL, 0);
+        xtun_io_submit(&acceptedFDs[i], IORING_OP_ACCEPT, sockListen, 0, 0, 0);
 
     dbg("ENTERING LOOP...");
 
@@ -482,7 +482,7 @@ int main (void) {
         // NEW CLIENTS
         for (uint i = 0; i != CONNECTIONS_ACCEPT_N; i++) {
 
-            //acceptedFDs[i] = accept(sockListen, NULL, 0);
+            xtun_io_submit(&acceptedFDs[i], IORING_OP_ACCEPT, sockListen, 0, 0, 0);
 
             if (acceptedFDs[i] < IO_ERR) {
                 // NEW CLIENT
@@ -516,15 +516,27 @@ int main (void) {
             // TODO: FIXME: ENQUEUE ANOTHER ACCEPT() AT THIS SLOT
         }
 
+        //
         Connection* conn = clients;
 
         while (conn) {
 
             Connection* const prev = conn->prev;
 
-            if (!conn->remove) {
-                // REDIRECIONA
+            while (!conn->remove) {
+                // DO WHAT NEEDS TO BE DONE
 
+                if (0) {
+                    // SOME ERROR
+                    conn->remove = 1;
+                    break;
+                }
+
+                if (0) {
+                    // SOME ERROR
+                    conn->remove = 1;
+                    break;
+                }
             }
 
             // REMOVE CLIENT
