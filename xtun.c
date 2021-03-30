@@ -62,8 +62,7 @@ struct client_s {
 
 int main (void) {
 
-    client_s* clientsFirst = NULL;
-    client_s* clientsLast = NULL;
+    client_s* clients = NULL;
 
     u32 acceptedFDs[ACCEPT_N];
 
@@ -125,13 +124,13 @@ int main (void) {
                 client->inWriteCancel  = IO_CLEAR;
                 client->outReadCancel  = IO_CLEAR;
                 client->outWriteCancel = IO_CLEAR;
+                client->prev           = clients;
                 client->next           = NULL;
-                client->prev           = clientsLast;
 
-                if (clientsLast)
-                    clientsLast->next = client;
+                if (clients)
+                    clients->next = client;
 
-                clientsLast = client;
+                clients = client;
 
             } else {
                 printf("ERROR: FAILED TO ACCEPT CLIENT: %s\n", strerror(acceptedFDs[i] - IO_ERR));
@@ -140,11 +139,11 @@ int main (void) {
             // TODO: FIXME: ENQUEUE ANOTHER ACCEPT() AT THIS SLOT
         }
 
-        client_s* client = clientsFirst;
+        client_s* client = clients;
 
         while (client) {
 
-            client_s* const next = client->next;
+            client_s* const prev = client->prev;
 
             if (!client->remove) {
                 // REDIRECIONA
@@ -209,20 +208,19 @@ int main (void) {
                     free(client->outRead);
                     free(client->outWrite);
 
-                    if (client->prev)
-                        client->prev->next = client->next;
-
                     if (client->next)
                         client->next->prev = client->prev;
 
-                    if (clientsLast == client)
-                        clientsLast = client->prev;
+                    if (client->prev)
+                        client->prev->next = client->next;
+                    else
+                        clients = NULL;
 
                     free(client);
                 }
             }
 
-            client = next;
+            client = prev;
         }
     }
 
