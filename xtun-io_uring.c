@@ -58,6 +58,10 @@ typedef struct sockaddr sockaddr;
 typedef struct sockaddr_un sockaddr_un;
 typedef struct sockaddr_in sockaddr_in;
 typedef struct sockaddr_in6 sockaddr_in6;
+typedef struct epoll_event epoll_event;
+typedef struct mmsghdr mmsghdr;
+typedef struct msghdr msghdr;
+typedef struct iovec iovec;
 
 #define loop while(1)
 #define elif else if
@@ -72,11 +76,6 @@ typedef struct sockaddr_in6 sockaddr_in6;
 #define _from_be16(x) __builtin_bswap16(x)
 #define _from_be32(x) __builtin_bswap32(x)
 #define _from_be64(x) __builtin_bswap64(x)
-
-typedef struct mmsghdr mmsghdr;
-typedef struct msghdr msghdr;
-
-typedef struct iovec iovec;
 
 #define clear(addr, size) memset(addr, 0, size)
 #define clear1(addr, size) memset(addr, 0xFF, size)
@@ -172,36 +171,33 @@ int main (void) {
     Connection conns[CONNECTIONS_N]; uint connsN = 0;
 
     // WAIT FOR CONNECTIONS
-    const int sockListen = socket(AF_UNIX, SOCK_DGRAM, 0);
+    const int sockListen = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
 
-    if (sockListen == -1) {
-        printf("ERROR: FAILED TO OPEN LISTENING SOCKET: %s\n", strerror(errno));
-        return 1;
-    }
+    if (sockListen == -1)
+        fatal("FAILED TO OPEN LISTENING SOCKET: %s", strerror(errno));
+
+    epoll_event event = { .events = EPOLLET | EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLPRI | EPOLLERR | EPOLLHUP, .data = { .fd = sockListen } };
+
+    if (epoll_ctl(epollFD, EPOLL_CTL_ADD, sockListen, &event))
+        fatal("FAILED TO ADD LISTEN SOCKET TO EPOLL: %s", strerror(errno));
 
     // PREVENT EADDRINUSE
     const int sockOptReuseAddr = 1;
 
-    if (setsockopt(sockListen, SOL_SOCKET, SO_REUSEADDR, (char*)&sockOptReuseAddr, sizeof(sockOptReuseAddr)) < 0) {
-        printf("ERROR: FAILED TO SET REUSE ADDR: %s\n", strerror(errno));
-        return 1;
-    }
+    if (setsockopt(sockListen, SOL_SOCKET, SO_REUSEADDR, (char*)&sockOptReuseAddr, sizeof(sockOptReuseAddr)) < 0)
+        fatal("FAILED TO SET REUSE ADDR: %s", strerror(errno));
 
     const sockaddr_un addr = { .sun_family = AF_UNIX, .sun_path = "\x00xtun\x00" };
 
     dbg("BINDING...");
 
-    if (bind(sockListen, (sockaddr*)&addr, sizeof(addr))) {
-        printf("ERROR: FAILED TO BIND: %s\n", strerror(errno));
-        return 1;
-    }
+    if (bind(sockListen, (sockaddr*)&addr, sizeof(addr)))
+        fatal("FAILED TO BIND: %s", strerror(errno));
 
     dbg("LISTENING...");
 
-    if (listen(sockListen, 512)) {
-        printf("ERROR: FAILED TO LISTEN FOR CLIENTS: %s\n", strerror(errno));
-        return 1;
-    }
+    if (listen(sockListen, 512))
+        fatal("FAILED TO LISTEN FOR CLIENTS: %s", strerror(errno));
 
     dbg("ENTERING LOOP...");
 
