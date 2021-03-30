@@ -49,19 +49,19 @@ struct client_s {
     u32 reserved;
     //
     u32 iReadRes;
-    u32 iWriteRes;
     u32 oReadRes;
+    u32 iWriteRes;
     u32 oWriteRes;
     //
-    u32 iReadCancel;
-    u32 iWriteCancel;
-    u32 oReadCancel;
-    u32 oWriteCancel;
     u32 fdCloseRes;
+    u32 iReadCancel;
+    u32 oReadCancel;
+    u32 iWriteCancel;
+    u32 oWriteCancel;
     //
     char iRead  [BUFF_SIZE];
-    char iWrite [BUFF_SIZE];
     char oRead  [BUFF_SIZE];
+    char iWrite [BUFF_SIZE];
     char oWrite [BUFF_SIZE];
 };
 
@@ -117,13 +117,13 @@ int main (void) {
                 client->remove         = 0;
                 client->fd             = acceptedFDs[i];
                 client->iReadRes       = IO_CLEAR;
-                client->iWriteRes      = IO_CLEAR;
                 client->oReadRes       = IO_CLEAR;
+                client->iWriteRes      = IO_CLEAR;
                 client->oWriteRes      = IO_CLEAR;
                 client->fdCloseRes     = IO_CLEAR;
                 client->iReadCancel    = IO_CLEAR;
-                client->iWriteCancel   = IO_CLEAR;
                 client->oReadCancel    = IO_CLEAR;
+                client->iWriteCancel   = IO_CLEAR;
                 client->oWriteCancel   = IO_CLEAR;
                 client->prev           = clients;
                 client->next           = NULL;
@@ -170,14 +170,14 @@ int main (void) {
                     // CANCEL IT
                 }
 
-                if (client->iWriteRes == IO_WAITING &&
-                    client->iWriteCancel != IO_WAITING) {
-
-                }
-
                 if (client->oReadRes == IO_WAITING &&
                     client->oReadCancel != IO_WAITING) {
                     // CANCEL IT
+                }
+
+                if (client->iWriteRes == IO_WAITING &&
+                    client->iWriteCancel != IO_WAITING) {
+
                 }
 
                 if (client->oWriteRes == IO_WAITING &&
@@ -196,10 +196,10 @@ int main (void) {
                     client->fdCloseRes   != IO_WAITING &&
                     client->iReadRes     != IO_WAITING &&
                     client->iReadCancel  != IO_WAITING &&
-                    client->iWriteRes    != IO_WAITING &&
-                    client->iWriteCancel != IO_WAITING &&
                     client->oReadRes     != IO_WAITING &&
                     client->oReadCancel  != IO_WAITING &&
+                    client->iWriteRes    != IO_WAITING &&
+                    client->iWriteCancel != IO_WAITING &&
                     client->oWriteRes    != IO_WAITING &&
                     client->oWriteCancel != IO_WAITING)  {
                     // TERMINA DE REMOVER ELE
