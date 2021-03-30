@@ -49,9 +49,14 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
+typedef int32_t i32;
+
 typedef uint8_t byte;
 
-typedef int32_t i32;
+typedef long long intll;
+
+typedef unsigned int uint;
+typedef unsigned long long int uintll;
 
 typedef struct sockaddr sockaddr;
 typedef struct sockaddr_un sockaddr_un;
@@ -71,11 +76,6 @@ typedef struct sockaddr_in6 sockaddr_in6;
 #define _from_be16(x) __builtin_bswap16(x)
 #define _from_be32(x) __builtin_bswap32(x)
 #define _from_be64(x) __builtin_bswap64(x)
-
-typedef long long intll;
-
-typedef unsigned int uint;
-typedef unsigned long long int uintll;
 
 typedef struct mmsghdr mmsghdr;
 typedef struct msghdr msghdr;
@@ -178,9 +178,11 @@ static uint uConsumeHead;
 //xtun_io_submit((u32*)&logBufferFlushing, IORING_OP_WRITE, STDOUT_FILENO, (u64)logBuffer, 0, logEnd - logBuffer);
 //xtun_io_submit(&answer->result, IORING_OP_READ, dnsSockets[answer->server], (u64)answer->pkt, 0, sizeof(answer->pkt));
 //xtun_io_submit(&conn->sslInRes, IORING_OP_CONNECT, conn->fd, (u64)&conn->dAddr, conn->v6 ? sizeof(SockAddrIP6) : sizeof(SockAddrIP4), 0);
-static inline void xtun_io_submit (u32* const data, const uint opcode, const uint fd, const u64 addr, const u64 off, const uint len) {
+static inline void xtun_io_submit (u32* const res, const uint opcode, const uint fd, const u64 addr, const u64 off, const uint len) {
 
-    uSubmissions[uSubmissionsEnd].data   = (u64)data;
+    *res = IO_WAITING;
+
+    uSubmissions[uSubmissionsEnd].data   = (uintptr_t)res;
     uSubmissions[uSubmissionsEnd].opcode = opcode;
     uSubmissions[uSubmissionsEnd].fd     = fd;
     uSubmissions[uSubmissionsEnd].addr   = addr;
@@ -549,24 +551,28 @@ int main (void) {
                     }
                 }
 
-                if (conn->iReadRes == IO_WAITING &&
+                if (conn->iReadRes    == IO_WAITING &&
                     conn->iReadCancel != IO_WAITING) {
                     dbg("ENQUEUING CANCEL IN READ");
+                    xtun_io_submit(&conn->iReadCancel, IORING_OP_ASYNC_CANCEL, conn->fd, (uintptr_t)&conn->iReadRes, 0, 0);
                 }
 
-                if (conn->oReadRes == IO_WAITING &&
+                if (conn->oReadRes    == IO_WAITING &&
                     conn->oReadCancel != IO_WAITING) {
                     dbg("ENQUEUING CANCEL OUT READ");
+                    xtun_io_submit(&conn->oReadCancel, IORING_OP_ASYNC_CANCEL, conn->fd, (uintptr_t)&conn->oReadRes, 0, 0);
                 }
 
-                if (conn->iWriteRes == IO_WAITING &&
+                if (conn->iWriteRes    == IO_WAITING &&
                     conn->iWriteCancel != IO_WAITING) {
                     dbg("ENQUEUING CANCEL IN WRITE");
+                    xtun_io_submit(&conn->iWriteCancel, IORING_OP_ASYNC_CANCEL, conn->fd, (uintptr_t)&conn->iWriteRes, 0, 0);
                 }
 
-                if (conn->oWriteRes == IO_WAITING &&
+                if (conn->oWriteRes    == IO_WAITING &&
                     conn->oWriteCancel != IO_WAITING) {
                     dbg("ENQUEUING CANCEL OUT WRITE");
+                    xtun_io_submit(&conn->oWriteCancel, IORING_OP_ASYNC_CANCEL, conn->fd, (uintptr_t)&conn->oWriteRes, 0, 0);
                 }
 
                 // TODO: FIXME: se close() der erro, tem que desconsiderar mesmo assim o fd?
