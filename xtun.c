@@ -45,19 +45,19 @@ struct client_s {
     u16 remove;
     u16 fd;
     u32 fdCloseRes;
-    u32 inReadRes;
-    u32 inWriteRes;
-    u32 outReadRes;
-    u32 outWriteRes;
-    void* inRead;
-    void* inWrite;
-    void* outRead;
-    void* outWrite;
+    u32 iReadRes;
+    u32 iWriteRes;
+    u32 oReadRes;
+    u32 oWriteRes;
+    void* iRead;
+    void* iWrite;
+    void* oRead;
+    void* oWrite;
     //
-    u32 inReadCancel;
-    u32 inWriteCancel;
-    u32 outReadCancel;
-    u32 outWriteCancel;
+    u32 iReadCancel;
+    u32 iWriteCancel;
+    u32 oReadCancel;
+    u32 oWriteCancel;
 };
 
 int main (void) {
@@ -111,19 +111,19 @@ int main (void) {
 
                 client->remove         = 0;
                 client->fd             = acceptedFDs[i];
-                client->inRead         = malloc(512*1024);
-                client->inWrite        = malloc(512*1024);
-                client->outRead        = malloc(512*1024);
-                client->outWrite       = malloc(512*1024);
-                client->inReadRes      = IO_CLEAR;
-                client->inWriteRes     = IO_CLEAR;
-                client->outReadRes     = IO_CLEAR;
-                client->outWriteRes    = IO_CLEAR;
+                client->iRead         = malloc(512*1024);
+                client->iWrite        = malloc(512*1024);
+                client->oRead        = malloc(512*1024);
+                client->oWrite       = malloc(512*1024);
+                client->iReadRes      = IO_CLEAR;
+                client->iWriteRes     = IO_CLEAR;
+                client->oReadRes     = IO_CLEAR;
+                client->oWriteRes    = IO_CLEAR;
                 client->fdCloseRes     = IO_CLEAR;
-                client->inReadCancel   = IO_CLEAR;
-                client->inWriteCancel  = IO_CLEAR;
-                client->outReadCancel  = IO_CLEAR;
-                client->outWriteCancel = IO_CLEAR;
+                client->iReadCancel   = IO_CLEAR;
+                client->iWriteCancel  = IO_CLEAR;
+                client->oReadCancel  = IO_CLEAR;
+                client->oWriteCancel = IO_CLEAR;
                 client->prev           = clients;
                 client->next           = NULL;
 
@@ -164,23 +164,23 @@ int main (void) {
                     }
                 }
 
-                if (client->inReadRes == IO_WAITING &&
-                    client->inReadCancel != IO_WAITING) {
+                if (client->iReadRes == IO_WAITING &&
+                    client->iReadCancel != IO_WAITING) {
                     // CANCEL IT
                 }
 
-                if (client->inWriteRes == IO_WAITING &&
-                    client->inWriteCancel != IO_WAITING) {
+                if (client->iWriteRes == IO_WAITING &&
+                    client->iWriteCancel != IO_WAITING) {
 
                 }
 
-                if (client->outReadRes == IO_WAITING &&
-                    client->outReadCancel != IO_WAITING) {
+                if (client->oReadRes == IO_WAITING &&
+                    client->oReadCancel != IO_WAITING) {
                     // CANCEL IT
                 }
 
-                if (client->outWriteRes == IO_WAITING &&
-                    client->outWriteCancel != IO_WAITING) {
+                if (client->oWriteRes == IO_WAITING &&
+                    client->oWriteCancel != IO_WAITING) {
 
                 }
 
@@ -191,22 +191,22 @@ int main (void) {
                     //close(client->fd);
                 }
 
-                if (client->fd             == 0 &&
-                    client->fdCloseRes     != IO_WAITING &&
-                    client->inReadRes      != IO_WAITING &&
-                    client->inReadCancel   != IO_WAITING &&
-                    client->inWriteRes     != IO_WAITING &&
-                    client->inWriteCancel  != IO_WAITING &&
-                    client->outReadRes     != IO_WAITING &&
-                    client->outReadCancel  != IO_WAITING &&
-                    client->outWriteRes    != IO_WAITING &&
-                    client->outWriteCancel != IO_WAITING)  {
+                if (client->fd           == 0 &&
+                    client->fdCloseRes   != IO_WAITING &&
+                    client->iReadRes     != IO_WAITING &&
+                    client->iReadCancel  != IO_WAITING &&
+                    client->iWriteRes    != IO_WAITING &&
+                    client->iWriteCancel != IO_WAITING &&
+                    client->oReadRes     != IO_WAITING &&
+                    client->oReadCancel  != IO_WAITING &&
+                    client->oWriteRes    != IO_WAITING &&
+                    client->oWriteCancel != IO_WAITING)  {
                     // TERMINA DE REMOVER ELE
 
-                    free(client->inRead);
-                    free(client->inWrite);
-                    free(client->outRead);
-                    free(client->outWrite);
+                    free(client->iRead);
+                    free(client->iWrite);
+                    free(client->oRead);
+                    free(client->oWrite);
 
                     if (client->next)
                         client->next->prev = client->prev;
