@@ -42,6 +42,9 @@ struct client_s {
     client_s* next;
     client_s* prev;
     //
+    u16 remove;
+    u16 fd;
+    u32 fdCloseRes;
     u32 inReadRes;
     u32 inWriteRes;
     u32 outReadRes;
@@ -51,9 +54,6 @@ struct client_s {
     void* outRead;
     void* outWrite;
     //
-    u16 remove;
-    u16 fd;
-    u32 fdCloseRes;
     u32 inReadCancel;
     u32 inWriteCancel;
     u32 outReadCancel;
@@ -110,12 +110,12 @@ int main (void) {
 
                 client_s* const client = malloc(sizeof(client_s));
 
+                client->remove         = 0;
+                client->fd             = acceptedFDs[i];
                 client->inRead         = malloc(512*1024);
                 client->inWrite        = malloc(512*1024);
                 client->outRead        = malloc(512*1024);
                 client->outWrite       = malloc(512*1024);
-                client->remove         = 0;
-                client->fd             = acceptedFDs[i];
                 client->inReadRes      = IO_CLEAR;
                 client->inWriteRes     = IO_CLEAR;
                 client->outReadRes     = IO_CLEAR;
