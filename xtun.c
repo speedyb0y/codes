@@ -182,7 +182,7 @@ int main (void) {
     //if (setsockopt(listenFD, SOL_SOCKET, SO_REUSEADDR, (char*)&sockOptReuseAddr, sizeof(sockOptReuseAddr)) < 0)
         //fatal("FAILED TO SET REUSE ADDR: %s", strerror(errno));
 
-    dbg("BINDING...");
+    dbg("BIND");
 
     sockaddr_un addr;
 
@@ -195,55 +195,54 @@ int main (void) {
     addr.sun_path[4] = 'n';
 
     if (bind(listenFD, (sockaddr*)&addr, sizeof(addr)))
-        fatal("FAILED TO BIND: %s", strerror(errno));
+        fatal("BIND FAILED: %s", strerror(errno));
 
-    dbg("LISTENING...");
+    dbg("LISTEN");
 
     if (listen(listenFD, 512))
-        fatal("FAILED TO LISTEN FOR CLIENTS: %s", strerror(errno));
+        fatal("LISTEN FAILED: %s", strerror(errno));
 
-    dbg("ENTERING LOOP...");
+    dbg("ENTERING LOOP");
 
     while (!sigTERM) {
 
         {
             epoll_event events[CONNECTIONS_N];
 
-            dbg("WAITING EPOLL EVENTS...");
+            dbg("EPOLL WAIT");
 
             int eventsN = epoll_wait(epollFD, events, CONNECTIONS_N, 5000);
 
             if (eventsN == -1) {
+                dbg("EPOLL WAIT - INTERRUPTED");
                 if (errno != EAGAIN)
-                    fatal("FAILED TO WAIT EPOLL EVENTS: %s", strerror(errno));
-                dbg("EPOLL INTERRUPTED");
-            } else {
-                dbg("EPOLL EVENTS: %d", eventsN);
+                    fatal("EPOLL WAIT FAILED: %s", strerror(errno));
+            } elif (eventsN) {
+                dbg("EPOLL WAIT - EVENTS: %d", eventsN);
                 while (eventsN--) {
-                    dbg("HANDLING EVENT");
+                    dbg("EPOLL WAIT - EVENT");
                     *(u32*)(events[eventsN].data.ptr) |=
                         (EPOLLIN  * !!(events[eventsN].events & (EPOLLIN  | EPOLLRDHUP | EPOLLPRI | EPOLLERR | EPOLLHUP))) |
                         (EPOLLOUT * !!(events[eventsN].events & (EPOLLOUT | EPOLLRDHUP | EPOLLPRI | EPOLLERR | EPOLLHUP)));
                 }
+            } else {
+                dbg("EPOLL WAIT - TIMED OUT");
             }
         }
 
         if (listenReady) {
-
-            dbg("ACCEPTING CONNECTIONS...");
-
             loop {
+                dbg("ACCEPT");
+
                 const int sock = accept4(listenFD, NULL, 0, SOCK_NONBLOCK | SOCK_CLOEXEC);
 
                 if (sock == -1) {
-                    dbg("ACCEPTING CONNECTIONS - NO MORE");
+                    dbg("ACCEPT - NO MORE");
                     if (errno != EAGAIN)
-                        fatal("FAILED TO ACCEPT CLIENT: %s", strerror(errno));
+                        fatal("ACCEPT FAILED: %s", strerror(errno));
                     listenReady = 0;
                     break;
                 }
-
-                dbg("NEW CLIENT");
 
                 epoll_event event = { .events = EPOLLET | EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLPRI | EPOLLERR | EPOLLHUP, .data = { .ptr = &connsLmt->status } };
 
