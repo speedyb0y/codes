@@ -172,17 +172,17 @@ int main (void) {
     Connection conns[CONNECTIONS_N]; Connection* connsLmt = conns;
 
     // WAIT FOR CONNECTIONS
+    u32 listenReady = EPOLLIN;
+
     const int listenFD = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
 
     if (listenFD == -1)
         fatal("FAILED TO OPEN LISTENING SOCKET: %s", strerror(errno));
 
-    epoll_event event = { .events = EPOLLET | EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLPRI | EPOLLERR | EPOLLHUP, .data = { .fd = listenFD } };
+    epoll_event event = { .events = EPOLLET | EPOLLIN | EPOLLERR, .data = { .ptr = &listenReady } };
 
     if (epoll_ctl(epollFD, EPOLL_CTL_ADD, listenFD, &event))
         fatal("FAILED TO ADD LISTEN SOCKET TO EPOLL: %s", strerror(errno));
-
-    int listenReady = 0;
 
     // PREVENT EADDRINUSE
     const int sockOptReuseAddr = 1;
@@ -242,9 +242,14 @@ int main (void) {
 
                 dbg("NEW CLIENT");
 
+                epoll_event event = { .events = EPOLLET | EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLPRI | EPOLLERR | EPOLLHUP, .data = { .ptr = &connsLmt->status } };
+
                 connsLmt->fd = sock;
                 connsLmt->status = EPOLLIN | EPOLLOUT;
                 connsLmt++;
+
+                if (epoll_ctl(epollFD, EPOLL_CTL_ADD, sock, &event))
+                    fatal("FAILED TO ADD ACCEPTED SOCKET TO EPOLL: %s", strerror(errno));
             }
         }
 
