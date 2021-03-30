@@ -42,13 +42,14 @@ struct client_s {
     client_s* next;
     client_s* prev;
     //
-    u16 remove;
-    u16 fd;
-    u32 fdCloseRes;
+    u32 remove;
+    u32 fd;
+    //
     u32 iReadRes;
     u32 iWriteRes;
     u32 oReadRes;
     u32 oWriteRes;
+    //
     void* iRead;
     void* iWrite;
     void* oRead;
@@ -58,6 +59,8 @@ struct client_s {
     u32 iWriteCancel;
     u32 oReadCancel;
     u32 oWriteCancel;
+    u32 fdCloseRes;
+    u32 reserved;
 };
 
 int main (void) {
