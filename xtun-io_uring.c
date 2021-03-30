@@ -138,6 +138,7 @@ typedef struct Connection Connection;
 
 struct Connection {
     u32 fd;
+    u32 status;
 };
 
 int main (void) {
@@ -168,7 +169,7 @@ int main (void) {
     const int epollFD = epoll_create1(EPOLL_CLOEXEC);
 
     // CONNECTIONS
-    Connection conns[CONNECTIONS_N]; uint connsN = 0;
+    Connection conns[CONNECTIONS_N]; Connection* connsLmt = conns;
 
     // WAIT FOR CONNECTIONS
     const int listenFD = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
@@ -228,17 +229,16 @@ int main (void) {
                 // NEW CLIENT
                 dbg("NEW CLIENT");
 
-                conns[connsN].fd = sock;
-                connsN++;
+                connsLmt->fd = sock;
+                connsLmt->status = EPOLLIN | EPOLLOUT;
+                connsLmt++;
             }
         }
 
         //
-        uint i = 0;
+        Connection* conn = conns;
 
-        while (i != connsN) {
-
-            Connection* const conn = &conns[i];
+        while (conn != connsLmt) {
 
             int remove = 0;
 
@@ -259,14 +259,14 @@ int main (void) {
 
                 close(conn->fd);
 
-                connsN--;
+                connsLmt--;
 
-                if (connsN) {
-                    conn->fd = conns[connsN].fd;
-                } else
-                    i++;
+                if (conn != connsLmt) {
+                    conn->fd     = connsLmt->fd;
+                    conn->status = connsLmt->status;
+                }
             } else
-                i++;
+                conn++;
         }
     }
 
