@@ -206,11 +206,25 @@ int main (void) {
 
     while (!sigTERM) {
 
-        { // POLL IO
+        {
+            epoll_event events[CONNECTIONS_N];
 
+            dbg("WAITING EPOLL EVENTS...");
+
+            int eventsN = epoll_wait(epollFD, events, CONNECTIONS_N, 2000);
+
+            if (eventsN == -1) {
+                if (errno != EAGAIN)
+                    fatal("FAILED TO WAIT EPOLL EVENTS: %s", strerror(errno));
+            } else {
+                while (eventsN--) {
+                    *(u32*)(events[eventsN].data.ptr) |=
+                        (EPOLLIN  * !!(events[eventsN].events & (EPOLLIN  | EPOLLRDHUP | EPOLLPRI | EPOLLERR | EPOLLHUP))) |
+                        (EPOLLOUT * !!(events[eventsN].events & (EPOLLOUT | EPOLLRDHUP | EPOLLPRI | EPOLLERR | EPOLLHUP)));
+                }
+            }
         }
 
-        // NEW CLIENTS
         if (listenReady) {
 
             dbg("ACCEPTING CONNECTIONS...");
@@ -226,7 +240,6 @@ int main (void) {
                     break;
                 }
 
-                // NEW CLIENT
                 dbg("NEW CLIENT");
 
                 connsLmt->fd = sock;
@@ -242,18 +255,18 @@ int main (void) {
 
             int remove = 0;
 
-            // DO WHAT NEEDS TO BE DONE
             if (!remove) {
-                // SOME ERROR
-                remove = 1;
+                if (0) { // SOME ERROR
+                    remove = 1;
+                }
             }
 
             if (!remove) {
-                // SOME ERROR
-                remove = 1;
+                if (0) { // SOME ERROR
+                    remove = 1;
+                }
             }
 
-            // REMOVE CLIENT
             if (remove) {
                 dbg("CONNECTION MUST BE DELETED");
 
@@ -272,7 +285,13 @@ int main (void) {
 
     dbg("EXITING");
 
-    // TODO: FIXME: CLOSE CONNECTIONS
+    { Connection* conn = conns;
+
+        while (conn != connsLmt) {
+            close(conn->fd);
+            conn++;
+        }
+    }
 
     close(epollFD);
 
