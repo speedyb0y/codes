@@ -197,9 +197,7 @@ static inline void xtun_io_submit (u32* const res, const uint opcode, const uint
     uSubmissionsEnd++;
 }
 
-
 // SIGNALS
-static volatile sig_atomic_t sigINT;
 static volatile sig_atomic_t sigTERM;
 static volatile sig_atomic_t sigUSR1;
 static volatile sig_atomic_t sigUSR2;
@@ -212,9 +210,6 @@ static void xtun_signal_handler (int signal) {
             break;
         case SIGUSR2:
             sigUSR2 = 1;
-            break;
-        case SIGINT:
-            sigINT = 1;
             break;
         default: // SIGTERM / SIGINT
             sigTERM = 1;
@@ -260,7 +255,7 @@ int main (void) {
 
     // SIGNALS
     // NO SIGNAL CAUGHT YET
-    sigTERM = sigUSR1 = sigUSR2 = sigINT = 0;
+    sigTERM = sigUSR1 = sigUSR2 = 0;
 
     // IGNORE ALL SIGNALS
     struct sigaction action = { 0 };
@@ -406,8 +401,7 @@ int main (void) {
 
     dbg("ENTERING LOOP...");
 
-    while (sigTERM == 0 &&
-            sigINT == 0) {
+    while (!sigTERM) {
 
         { // POLL IO
             u64 q = uSubmissionsEnd - uSubmissionsStart;
@@ -575,12 +569,10 @@ int main (void) {
                     xtun_io_submit(&conn->oWriteCancel, IORING_OP_ASYNC_CANCEL, conn->fd, (uintptr_t)&conn->oWriteRes, 0, 0);
                 }
 
-                // TODO: FIXME: se close() der erro, tem que desconsiderar mesmo assim o fd?
                 if (conn->fd &&
                     conn->fdCloseRes != IO_WAITING) {
                     dbg("ENQUEUING CLOSE");
-                    // TODO: SUBMETER O CLOSE AO URING
-                    //close(conn->fd);
+                    xtun_io_submit(&conn->fdCloseRes, IORING_OP_CLOSE, conn->fd, 0, 0, 0);
                 }
 
                 if (conn->fd           == 0 &&
