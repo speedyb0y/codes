@@ -171,32 +171,34 @@ int main (void) {
     Connection conns[CONNECTIONS_N]; uint connsN = 0;
 
     // WAIT FOR CONNECTIONS
-    const int sockListen = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
+    const int listenFD = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
 
-    if (sockListen == -1)
+    if (listenFD == -1)
         fatal("FAILED TO OPEN LISTENING SOCKET: %s", strerror(errno));
 
-    epoll_event event = { .events = EPOLLET | EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLPRI | EPOLLERR | EPOLLHUP, .data = { .fd = sockListen } };
+    epoll_event event = { .events = EPOLLET | EPOLLIN | EPOLLOUT | EPOLLRDHUP | EPOLLPRI | EPOLLERR | EPOLLHUP, .data = { .fd = listenFD } };
 
-    if (epoll_ctl(epollFD, EPOLL_CTL_ADD, sockListen, &event))
+    if (epoll_ctl(epollFD, EPOLL_CTL_ADD, listenFD, &event))
         fatal("FAILED TO ADD LISTEN SOCKET TO EPOLL: %s", strerror(errno));
+
+    int listenReady = 0;
 
     // PREVENT EADDRINUSE
     const int sockOptReuseAddr = 1;
 
-    if (setsockopt(sockListen, SOL_SOCKET, SO_REUSEADDR, (char*)&sockOptReuseAddr, sizeof(sockOptReuseAddr)) < 0)
+    if (setsockopt(listenFD, SOL_SOCKET, SO_REUSEADDR, (char*)&sockOptReuseAddr, sizeof(sockOptReuseAddr)) < 0)
         fatal("FAILED TO SET REUSE ADDR: %s", strerror(errno));
 
     const sockaddr_un addr = { .sun_family = AF_UNIX, .sun_path = "\x00xtun\x00" };
 
     dbg("BINDING...");
 
-    if (bind(sockListen, (sockaddr*)&addr, sizeof(addr)))
+    if (bind(listenFD, (sockaddr*)&addr, sizeof(addr)))
         fatal("FAILED TO BIND: %s", strerror(errno));
 
     dbg("LISTENING...");
 
-    if (listen(sockListen, 512))
+    if (listen(listenFD, 512))
         fatal("FAILED TO LISTEN FOR CLIENTS: %s", strerror(errno));
 
     dbg("ENTERING LOOP...");
@@ -208,21 +210,27 @@ int main (void) {
         }
 
         // NEW CLIENTS
-        while (1) {
+        if (listenReady) {
 
-            const int sock = accept4(sockListen, NULL, 0, SOCK_NONBLOCK | SOCK_CLOEXEC);
+            dbg("ACCEPTING CONNECTIONS...");
 
-            if (sock == -1) {
-                if (errno != EAGAIN)
-                    err("FAILED TO ACCEPT CLIENT: %s", strerror(errno));
-                break;
+            loop {
+                const int sock = accept4(listenFD, NULL, 0, SOCK_NONBLOCK | SOCK_CLOEXEC);
+
+                if (sock == -1) {
+                    dbg("ACCEPTING CONNECTIONS - NO MORE");
+                    if (errno != EAGAIN)
+                        fatal("FAILED TO ACCEPT CLIENT: %s", strerror(errno));
+                    listenReady = 0;
+                    break;
+                }
+
+                // NEW CLIENT
+                dbg("NEW CLIENT");
+
+                conns[connsN].fd = sock;
+                connsN++;
             }
-
-            // NEW CLIENT
-            dbg("NEW CLIENT");
-
-            conns[connsN].fd = sock;
-            connsN++;
         }
 
         //
