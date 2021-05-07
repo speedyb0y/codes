@@ -9,14 +9,10 @@
 #include <string.h>
 #include <sys/types.h>
 #include <sys/socket.h>
-#include <sys/ioctl.h>
 #include <sys/stat.h>
-#include <sys/select.h>
 #include <sys/time.h>
 #include <sys/random.h>
 #include <net/if.h>
-#include <net/if_arp.h>
-#include <net/ethernet.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
 #include <errno.h>
@@ -217,6 +213,8 @@ int main (int argsN, char* args[]) {
 
                 snprintf(cmd, sizeof(cmd), "ip -6 addr add dev %s %s", itfc, ip); system(cmd);
             }
+
+            system("ip -6 route flush cache");
         }
     }
 }
