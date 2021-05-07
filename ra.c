@@ -13,8 +13,7 @@
 #include <sys/stat.h>
 #include <sys/select.h>
 #include <sys/time.h>
-#include <linux/if_packet.h>
-#include <linux/if_tun.h>
+#include <sys/random.h>
 #include <net/if.h>
 #include <net/if_arp.h>
 #include <net/ethernet.h>
@@ -85,8 +84,10 @@ int main (int argsN, char* args[]) {
 
     u8 ipCurrent[16];
 
-    ((u64*)ipCurrent)[0] = rdtsc() + time(NULL) + 0xAABBCCDD00112233ULL;
-    ((u64*)ipCurrent)[1] = rdtsc() + time(NULL) + 0x4455667700119988ULL;
+    getrandom(ipCurrent, sizeof(ipCurrent), 0);
+
+    ((u64*)ipCurrent)[0] += rdtsc()    + 0xAABBCCDD00112233ULL;
+    ((u64*)ipCurrent)[1] += time(NULL) + 0x4455667700119988ULL;
 
     loop {
 
@@ -175,39 +176,47 @@ int main (int argsN, char* args[]) {
             prefixLenCurrent = prefixLenNew;
 
             //
-            ((u64*)ipCurrent)[0] += rdtsc() + ((u64)time(NULL) << 32) + 0x5E3621AEF0A1946ULL;
-            ((u64*)ipCurrent)[1] += rdtsc() + ((u64)time(NULL) << 32) + 0x3EC4A114293E561ULL;
-
-            // OVERWRITE O PREFIXO
-            uint remaining = prefixLenNew;
-            uint offset = 0;
-
-            while (remaining) {
-                const uint amount = (remaining < 8) ? remaining : 8;
-                const uint mask = (0xFFU << (8 - amount)) & 0xFFU;
-                ipCurrent[offset] &= ~mask;
-                ipCurrent[offset] |= prefixCurrent[offset] & mask;
-                offset++;
-                remaining -= amount;
-            }
-
             char ip[64]; char cmd[256];
 
-            snprintf(ip, sizeof(ip), "%X:%X:%X:%X:%X:%X:%X:%X",
-                ntohs(((u16*)ipCurrent)[0]),
-                ntohs(((u16*)ipCurrent)[1]),
-                ntohs(((u16*)ipCurrent)[2]),
-                ntohs(((u16*)ipCurrent)[3]),
-                ntohs(((u16*)ipCurrent)[4]),
-                ntohs(((u16*)ipCurrent)[5]),
-                ntohs(((u16*)ipCurrent)[6]),
-                ntohs(((u16*)ipCurrent)[7])
-                );
-
-            printf("IP %s\n", ip);
-
             snprintf(cmd, sizeof(cmd), "ip -6 addr flush dev %s", itfc);      system(cmd);
-            snprintf(cmd, sizeof(cmd), "ip -6 addr add dev %s %s", itfc, ip); system(cmd);
+
+            //
+            ((u64*)ipCurrent)[0] += (u64)time(NULL) + 0x5E3621AEF0A1946ULL;
+            ((u64*)ipCurrent)[1] += rdtsc()         + 0x3EC4A114293E561ULL;
+
+            for (uint i = 0; i != 32; i++) {
+
+                u64 r[2]; getrandom(r, sizeof(r), 0);
+
+                ((u64*)ipCurrent)[0] += r[0];
+                ((u64*)ipCurrent)[1] += r[1];
+
+                // OVERWRITE O PREFIXO
+                uint remaining = prefixLenNew;
+                uint offset = 0;
+
+                while (remaining) {
+                    const uint amount = (remaining < 8) ? remaining : 8;
+                    const uint mask = (0xFFU << (8 - amount)) & 0xFFU;
+                    ipCurrent[offset] &= ~mask;
+                    ipCurrent[offset] |= prefixCurrent[offset] & mask;
+                    offset++;
+                    remaining -= amount;
+                }
+
+                snprintf(ip, sizeof(ip), "%X:%X:%X:%X:%X:%X:%X:%X",
+                    ntohs(((u16*)ipCurrent)[0]),
+                    ntohs(((u16*)ipCurrent)[1]),
+                    ntohs(((u16*)ipCurrent)[2]),
+                    ntohs(((u16*)ipCurrent)[3]),
+                    ntohs(((u16*)ipCurrent)[4]),
+                    ntohs(((u16*)ipCurrent)[5]),
+                    ntohs(((u16*)ipCurrent)[6]),
+                    ntohs(((u16*)ipCurrent)[7])
+                    );
+
+                snprintf(cmd, sizeof(cmd), "ip -6 addr add dev %s %s", itfc, ip); system(cmd);
+            }
         }
     }
 }
