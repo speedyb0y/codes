@@ -177,15 +177,15 @@ int main (int argsN, char* args[]) {
             snprintf(cmd, sizeof(cmd), "ip -6 addr flush dev %s", itfc);      system(cmd);
 
             //
-            ((u64*)ipCurrent)[0] += ~((u64*)ipCurrent)[1] + time(NULL);
-            ((u64*)ipCurrent)[1] +=  ((u64*)ipCurrent)[0] + rdtsc();
+            ((u64*)ipCurrent)[0] +=  ((u64*)ipCurrent)[1] + time(NULL);
+            ((u64*)ipCurrent)[1] += ~((u64*)ipCurrent)[0] + rdtsc();
 
             for (uint i = 0; i != 32; i++) {
 
                 u64 r[2]; getrandom(r, sizeof(r), 0);
 
-                ((u64*)ipCurrent)[0] += r[0];
-                ((u64*)ipCurrent)[1] += r[1];
+                ((u64*)ipCurrent)[0] += r[0] + 0x12E4A91CULL;
+                ((u64*)ipCurrent)[1] += r[1] + 0x3402AAACULL;
 
                 // OVERWRITE O PREFIXO
                 uint remaining = prefixLenNew;
