@@ -24,9 +24,6 @@
 #define loop while(1)
 #define elif(c) else if (c)
 
-typedef intptr_t intp;
-typedef uintptr_t uintp;
-
 typedef unsigned int uint;
 typedef unsigned long int uintl;
 typedef unsigned long long int uintll;
@@ -35,11 +32,6 @@ typedef uint8_t u8;
 typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
-
-typedef struct ifreq IfReq;
-typedef struct sockaddr SockAddr;
-typedef struct sockaddr_ll SockAddrLL;
-typedef struct sockaddr_in6 SockAddrIP6;
 
 #define clear(addr, size) memset(addr, 0, size)
 #define copy(src, size, dst) memcpy(dst, src, size)
