@@ -19,7 +19,6 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <time.h>
-#include <netinet/icmp6.h>
 
 #define loop while(1)
 #define elif(c) else if (c)
