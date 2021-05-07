@@ -177,8 +177,8 @@ int main (int argsN, char* args[]) {
             snprintf(cmd, sizeof(cmd), "ip -6 addr flush dev %s", itfc);      system(cmd);
 
             //
-            ((u64*)ipCurrent)[0] += (u64)time(NULL) + 0x5E3621AEF0A1946ULL;
-            ((u64*)ipCurrent)[1] += rdtsc()         + 0x3EC4A114293E561ULL;
+            ((u64*)ipCurrent)[0] += 0x5E3621AEF0A1946ULL + time(NULL);
+            ((u64*)ipCurrent)[1] += 0x3EC4A114293E561ULL + rdtsc();
 
             for (uint i = 0; i != 32; i++) {
 
