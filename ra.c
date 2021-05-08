@@ -53,8 +53,7 @@ static inline u64 rdtsc (void) {
     return ((u64)hi << 32) | lo;
 }
 
-//system(cmd);
-#define IP(fmt, ...) ({ char cmd[512]; snprintf(cmd, sizeof(cmd), "ip " fmt, ##__VA_ARGS__); printf(" -> %s\n", cmd); })
+#define IP(fmt, ...) ({ char cmd[512]; snprintf(cmd, sizeof(cmd), "ip " fmt, ##__VA_ARGS__); printf(" -> %s\n", cmd); system(cmd); })
 
 typedef struct Link Link;
 
