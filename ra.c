@@ -274,8 +274,8 @@ int main (int argsN, char** args) {
                 if (ok) {
                     // AGORA LIDÁ COM A MENSAGEM QUE FOI CARREGADA
 
-                    if (0)
-                        printf("GW MAC %02X:%02X:%02X:%02X:%02X:%02X MTU %u PREFIX FLAGS %02X VALIDLT %u PREFERREDLT %u PREFIX RESERVED %u\n",
+                    if (1)
+                        printf("GW MAC %02X:%02X:%02X:%02X:%02X:%02X MTU %u PREFIX FLAGS 0x%02X VALIDLT %u PREFERREDLT %u PREFIX RESERVED 0x%08X\n",
                             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mtu,
                             prefixFlags, prefixValidLT, prefixPreferredLT, prefixReserved
                             );
@@ -309,7 +309,7 @@ int main (int argsN, char** args) {
                                 ntohs(((u16*)link->prefix)[7]),
                                 (uint)link->prefixLen);
 
-                            printf("PREFIX %s\n", prefix);
+                            printf("CHANGED LINK #%u ITFC %s NEW PREFIX %s\n", linkID, link->itfc, prefix);
 
                             IP("-6 addr flush dev %s", link->itfc);
 
