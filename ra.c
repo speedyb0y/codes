@@ -59,6 +59,10 @@ struct Link {
     u32 prefixLen;
 };
 
+#define OPTION_GW_MAC              0x01U
+#define OPTION_PREFIX_INFORMATION  0x03U
+#define OPTION_MTU                 0x05U
+
 int main (int argsN, char** args) {
 
     if (argsN % 4 != 1) {
@@ -157,7 +161,15 @@ int main (int argsN, char** args) {
                 if (0)
                     printf("ADVERTISEMENT!!!\n");
 
-                int ok = 1; const u8* mac = NULL; const u8* prefixNew = NULL; uint prefixLenNew = 0;
+                int ok = 1;
+                const u8* mac = NULL;
+                const u8* prefix = NULL;
+                uint mtu = 0;
+                uint prefixLen = 0;
+                uint flags;
+                uint validLT;
+                uint preferredLT;
+                uint reserved;
 
                 const void* option = msg + 16; msgSize -= 16;
 
@@ -185,37 +197,37 @@ int main (int argsN, char** args) {
                         break;
                     }
 
-                    if (optionCode == 0x03) { // TODO: FIXME: VALIDAR optionSize
-                        // TYPE: PREFIX INFORMATION
-                        const uint prefixLen = *(u8*)optionValue;
-                        const uint flags = *(u8*)(optionValue + 1);
-                        const uint validLT = ntohl(*(u32*)(optionValue + 2));
-                        const uint preferredLT = ntohl(*(u32*)(optionValue + 6));
-                        const uint reserved = *(u32*)(optionValue + 10);
-                        const u8* const prefix = optionValue + 14;
-                        if (0)
-                            printf("OPTION PREFIX INFORMATION - FLAGS %02X VALIDLT %u PREFERREDLT %u RESERVED %u\n", flags, validLT, preferredLT, reserved);
-                        if (prefixLen < 128) {
-                            prefixLenNew = prefixLen;
-                            prefixNew = prefix;
-                        } else {
-                            // INVALID
-                            ok = 0;
-                        }
-                    } elif (optionCode == 0x05) {
-                        // MTU
-                        const uint reserved = *(u16*)optionValue;
-                        const uint mtu = ntohl(*(u32*)(optionValue + 2));
-                        if (0)
-                            printf("OPTION MTU - MTU PREFERREDLT %u RESERVED %u\n", mtu, reserved);
-                    } elif (optionCode == 0x01) { // GW MAC
-                        mac = optionValue;
-                        if (1)
-                            printf("OPTION GW MAC - %02X:%02X:%02X:%02X:%02X:%02X\n",
-                                mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-                    } else {
-                        if(0)
-                            printf("OPTION 0x%02X - SIZE %u\n", optionCode, optionSize);
+                    switch (optionCode) {
+                        case OPTION_PREFIX_INFORMATION: // TODO: FIXME: VALIDAR optionSize
+                            // TYPE: PREFIX INFORMATION
+                            prefixLen = *(u8*)optionValue;
+                            flags = *(u8*)(optionValue + 1);
+                            validLT = ntohl(*(u32*)(optionValue + 2));
+                            preferredLT = ntohl(*(u32*)(optionValue + 6));
+                            reserved = *(u32*)(optionValue + 10);
+                            prefix = optionValue + 14;
+                            if (0)
+                                printf("OPTION PREFIX INFORMATION - FLAGS %02X VALIDLT %u PREFERREDLT %u RESERVED %u\n", flags, validLT, preferredLT, reserved);
+                            if (prefixLen > 90) {
+                                // INVALID
+                                ok = 0;
+                            }
+                            break;
+                        case OPTION_MTU:
+                            // MTU
+                            mtu = ntohl(*(u32*)(optionValue + 2));
+                            if (0)
+                                printf("OPTION MTU - MTU PREFERREDLT %u RESERVED %u\n", mtu, *(u16*)optionValue);
+                            break;
+                        case OPTION_GW_MAC:
+                            mac = optionValue;
+                            if (1)
+                                printf("OPTION GW MAC - %02X:%02X:%02X:%02X:%02X:%02X\n",
+                                    mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+                            break;
+                        default:
+                            if(0)
+                                printf("OPTION 0x%02X - SIZE %u\n", optionCode, optionSize);
                     }
 
                     // TODO: FIXME: USAR source link-address option (1), length 8 (1): dc:d9:ae:7e:2b:90 PARA RECONHECER OROTEADOR/INTERFACE E ENTÃO TERSÓUMDAEMON
@@ -224,18 +236,18 @@ int main (int argsN, char** args) {
                     msgSize -= optionSize;
                 }
 
-                if (ok && mac && prefixNew && prefixLenNew) {
+                if (ok && mac && prefix && prefixLen) {
                     // AGORA LIDÁ COM A MENSAGEM QUE FOI CARREGADA
                     int unhandled = 1;
                     for (uint linkID = 0; linkID != linksN; linkID++) { Link* const link = &links[linkID];
                         if (memcmp(link->gwMAC, mac, 6))
                             continue;
                         unhandled = 0;
-                        if (memcmp(link->prefix, prefixNew, 16) || link->prefixLen != prefixLenNew) {
+                        if (memcmp(link->prefix, prefix, 16) || link->prefixLen != prefixLen) {
                             // É DESTE LINK, E ELE MUDOU
 
                             // PASSA A USAR ELE
-                            memcpy(link->prefix, prefixNew, 16); link->prefixLen = prefixLenNew;
+                            memcpy(link->prefix, prefix, 16); link->prefixLen = prefixLen;
 
                             //
                             char prefix[64]; char ip[64];
@@ -267,7 +279,7 @@ int main (int argsN, char** args) {
                                 ((u64*)ipGenerated)[1] += r[1] + 0x3402AAACULL;
 
                                 // OVERWRITE O PREFIXO
-                                uint remaining = prefixLenNew;
+                                uint remaining = prefixLen;
                                 uint offset = 0;
 
                                 while (remaining) {
