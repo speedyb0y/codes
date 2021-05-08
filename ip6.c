@@ -21,9 +21,6 @@
 #include <unistd.h>
 #include <time.h>
 
-#define loop while(1)
-#define elif(c) else if (c)
-
 typedef unsigned int uint;
 typedef unsigned long int uintl;
 typedef unsigned long long int uintll;
@@ -81,7 +78,7 @@ int main (int argsN, char** args) {
               char* const _gwMAC  = args[3];
         const char* const _addrsN = args[4];
         const char* const _prefix = args[5];
-        const char* const _pLen   = args[6];
+        const char* const _pLen   = args[6]; args += 7;
 
         uint table = atoi(_table);
         const uint addrsN = atoi(_addrsN);
@@ -139,8 +136,6 @@ int main (int argsN, char** args) {
             printf("BAD PREFIX %s\n", _prefix);
             return 1;
         }
-
-        args += 7;
 
         //uint prefixValidLT = 0;
         //uint prefixPreferredLT = 0;
