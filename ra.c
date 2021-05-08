@@ -33,9 +33,6 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
-#define clear(addr, size) memset(addr, 0, size)
-#define copy(src, size, dst) memcpy(dst, src, size)
-
 #define OPTION_GW_MAC              0x01U
 #define OPTION_PREFIX_INFORMATION  0x03U
 #define OPTION_MTU                 0x05U
@@ -291,30 +288,27 @@ int main (int argsN, char** args) {
                         if (memcmp(link->prefix, prefix, IPV6_ADDR_SIZE) || link->prefixLen != prefixLen) {
                             // É DESTE LINK, E ELE MUDOU
 
+                            printf("CHANGED LINK #%u ITFC %s NEW PREFIX %04X:%04X:%04X:%04X:%04X:%04X:%04X:%04X/%u\n", linkID, link->itfc,
+                                ntohs(((u16*)prefix)[0]),
+                                ntohs(((u16*)prefix)[1]),
+                                ntohs(((u16*)prefix)[2]),
+                                ntohs(((u16*)prefix)[3]),
+                                ntohs(((u16*)prefix)[4]),
+                                ntohs(((u16*)prefix)[5]),
+                                ntohs(((u16*)prefix)[6]),
+                                ntohs(((u16*)prefix)[7]),
+                                (uint)link->prefixLen);
+
                             // PASSA A USAR ELE
                             memcpy(link->prefix, prefix, IPV6_ADDR_SIZE); link->prefixLen = prefixLen;
 
-                            //
-                            char prefix[64]; char ip[64];
-
-                            snprintf(prefix, sizeof(prefix), "%X:%X:%X:%X:%X:%X:%X:%X/%u",
-                                ntohs(((u16*)link->prefix)[0]),
-                                ntohs(((u16*)link->prefix)[1]),
-                                ntohs(((u16*)link->prefix)[2]),
-                                ntohs(((u16*)link->prefix)[3]),
-                                ntohs(((u16*)link->prefix)[4]),
-                                ntohs(((u16*)link->prefix)[5]),
-                                ntohs(((u16*)link->prefix)[6]),
-                                ntohs(((u16*)link->prefix)[7]),
-                                (uint)link->prefixLen);
-
-                            printf("CHANGED LINK #%u ITFC %s NEW PREFIX %s\n", linkID, link->itfc, prefix);
-
                             IP("-6 addr flush dev %s", link->itfc);
 
-                            //
+                            uint table = link->table;
+
                             ((u64*)ipGenerated)[0] +=  ((u64*)ipGenerated)[1] + time(NULL);
                             ((u64*)ipGenerated)[1] += ~((u64*)ipGenerated)[0] + rdtsc();
+
 
                             for (uint i = 0; i != link->addrsN; i++) {
 
@@ -339,6 +333,8 @@ int main (int argsN, char** args) {
                                     remaining -= amount;
                                 }
 
+                                char ip[64];
+
                                 snprintf(ip, sizeof(ip), "%X:%X:%X:%X:%X:%X:%X:%X",
                                     ntohs(((u16*)ipGenerated)[0]),
                                     ntohs(((u16*)ipGenerated)[1]),
@@ -350,12 +346,12 @@ int main (int argsN, char** args) {
                                     ntohs(((u16*)ipGenerated)[7])
                                     );
 
-                                const uint table = link->table + i;
-
                                 IP("-6 addr add dev %s %s", link->itfc, ip);
                                 IP("-6 route flush table %u", table);
                                 IP("-6 route add table %u src %s dev %s %s", table, ip, link->itfc, link->gwIP);
                                 IP("-6 route add table %u src %s dev %s default via %s", table, ip, link->itfc, link->gwIP);
+
+                                table++;
                             }
 
                             system("ip -6 route flush cache");
