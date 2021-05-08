@@ -166,9 +166,9 @@ int main (int argsN, char** args) {
                 const u8* prefix = NULL;
                 uint mtu = 0;
                 uint prefixLen = 0;
-                uint flags = 0;
-                uint validLT = 0;
-                uint preferredLT = 0;
+                uint prefixFlags = 0;
+                uint prefixValidLT = 0;
+                uint prefixPreferredLT = 0;
                 uint prefixReserved = 0;
 
                 const void* option = msg + 16; msgSize -= 16;
@@ -201,13 +201,14 @@ int main (int argsN, char** args) {
                         case OPTION_PREFIX_INFORMATION: // TODO: FIXME: VALIDAR optionSize
                             // TYPE: PREFIX INFORMATION
                             prefixLen = *(u8*)optionValue;
-                            flags = *(u8*)(optionValue + 1);
-                            validLT = ntohl(*(u32*)(optionValue + 2));
-                            preferredLT = ntohl(*(u32*)(optionValue + 6));
+                            prefixFlags = *(u8*)(optionValue + 1);
+                            prefixValidLT = ntohl(*(u32*)(optionValue + 2));
+                            prefixPreferredLT = ntohl(*(u32*)(optionValue + 6));
                             prefixReserved = *(u32*)(optionValue + 10);
                             prefix = optionValue + 14;
-                            if (prefixLen > 90) {
-                                // INVALID
+                            if (prefixLen < 32 ||
+                                prefixLen > 90) {
+                                printf("INVALID PREFIX SIZE\n");
                                 ok = 0;
                             }
                             break;
@@ -229,11 +230,21 @@ int main (int argsN, char** args) {
                     msgSize -= optionSize;
                 }
 
-                if (ok && mac && prefix && prefixLen) {
+                if (!mac) {
+                    printf("MISSING MAC\n");
+                    ok = 0;
+                }
+
+                if (!prefix) {
+                    printf("MISSING PREFIX\n");
+                    ok = 0;
+                }
+
+                if (ok && mac && prefix) {
                     // AGORA LIDÁ COM A MENSAGEM QUE FOI CARREGADA
 
                     if (1) {
-                        printf("OPTION PREFIX INFORMATION - FLAGS %02X VALIDLT %u PREFERREDLT %u RESERVED %u\n", flags, validLT, preferredLT, prefixReserved);
+                        printf("OPTION PREFIX INFORMATION - FLAGS %02X VALIDLT %u PREFERREDLT %u RESERVED %u\n", prefixFlags, prefixValidLT, prefixPreferredLT, prefixReserved);
                         printf("OPTION GW MAC - %02X:%02X:%02X:%02X:%02X:%02X\n",
                             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
                         printf("OPTION MTU - MTU %u\n", mtu);
