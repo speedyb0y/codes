@@ -166,10 +166,10 @@ int main (int argsN, char** args) {
                 const u8* prefix = NULL;
                 uint mtu = 0;
                 uint prefixLen = 0;
-                uint flags;
-                uint validLT;
-                uint preferredLT;
-                uint reserved;
+                uint flags = 0;
+                uint validLT = 0;
+                uint preferredLT = 0;
+                uint prefixReserved = 0;
 
                 const void* option = msg + 16; msgSize -= 16;
 
@@ -204,26 +204,19 @@ int main (int argsN, char** args) {
                             flags = *(u8*)(optionValue + 1);
                             validLT = ntohl(*(u32*)(optionValue + 2));
                             preferredLT = ntohl(*(u32*)(optionValue + 6));
-                            reserved = *(u32*)(optionValue + 10);
+                            prefixReserved = *(u32*)(optionValue + 10);
                             prefix = optionValue + 14;
-                            if (0)
-                                printf("OPTION PREFIX INFORMATION - FLAGS %02X VALIDLT %u PREFERREDLT %u RESERVED %u\n", flags, validLT, preferredLT, reserved);
                             if (prefixLen > 90) {
                                 // INVALID
                                 ok = 0;
                             }
                             break;
                         case OPTION_MTU:
-                            // MTU
+                            //mtuReserved = *(u16*)optionValue;
                             mtu = ntohl(*(u32*)(optionValue + 2));
-                            if (0)
-                                printf("OPTION MTU - MTU PREFERREDLT %u RESERVED %u\n", mtu, *(u16*)optionValue);
                             break;
                         case OPTION_GW_MAC:
                             mac = optionValue;
-                            if (1)
-                                printf("OPTION GW MAC - %02X:%02X:%02X:%02X:%02X:%02X\n",
-                                    mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
                             break;
                         default:
                             if(0)
@@ -238,7 +231,16 @@ int main (int argsN, char** args) {
 
                 if (ok && mac && prefix && prefixLen) {
                     // AGORA LIDÁ COM A MENSAGEM QUE FOI CARREGADA
+
+                    if (1) {
+                        printf("OPTION PREFIX INFORMATION - FLAGS %02X VALIDLT %u PREFERREDLT %u RESERVED %u\n", flags, validLT, preferredLT, prefixReserved);
+                        printf("OPTION GW MAC - %02X:%02X:%02X:%02X:%02X:%02X\n",
+                            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
+                        printf("OPTION MTU - MTU %u\n", mtu);
+                    }
+
                     int unhandled = 1;
+
                     for (uint linkID = 0; linkID != linksN; linkID++) { Link* const link = &links[linkID];
                         if (memcmp(link->gwMAC, mac, 6))
                             continue;
