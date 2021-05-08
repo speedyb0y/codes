@@ -309,7 +309,6 @@ int main (int argsN, char** args) {
                             ((u64*)ipGenerated)[0] +=  ((u64*)ipGenerated)[1] + time(NULL);
                             ((u64*)ipGenerated)[1] += ~((u64*)ipGenerated)[0] + rdtsc();
 
-
                             for (uint i = 0; i != link->addrsN; i++) {
 
                                 u8 r[IPV6_ADDR_SIZE]; getrandom(r, sizeof(r), 0);
