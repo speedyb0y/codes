@@ -55,7 +55,8 @@ struct Link {
     u16 table;
     u8 gwMAC[6];
     u8 prefix[16];
-    u64 prefixLen;
+    u32 mtu;
+    u32 prefixLen;
 };
 
 int main (int argsN, char** args) {
@@ -103,6 +104,7 @@ int main (int argsN, char** args) {
         links[i].gwMAC[5] = strtoul(args[3] + 15, NULL, 16);
         links[i].prefixLen = 0;
         links[i].prefix[0] = 0;
+        links[i].mtu = 0;
 
         args += 4;
     }
@@ -147,34 +149,42 @@ int main (int argsN, char** args) {
 
         for (int i = 0; i != msgsN; i++) {
 
-            const void* const msg = buffs[i]; const uint msgSize = msgs[i].msg_len;
+            const void* const msg = buffs[i]; uint msgSize = msgs[i].msg_len;
 
             if (*(u8*)msg == 0x86) {
                 // ROUTER ADVERTISEMENT
 
-                const u8* mac = NULL; const u8* prefixNew = NULL; uint prefixLenNew = 0;
-
                 if (0)
                     printf("ADVERTISEMENT!!!\n");
 
-                const void* option = msg + 16;
+                int ok = 1; const u8* mac = NULL; const u8* prefixNew = NULL; uint prefixLenNew = 0;
 
-                while (option < (msg + msgSize)) {
+                const void* option = msg + 16; msgSize -= 16;
+
+                while (msgSize) {
+
+                    if (msgSize > 2048) { // OVERFLOW
+                        printf("ERROR: LEU DEMAIS\n");
+                        ok = 0;
+                        break;
+                    }
+
+                    if (msgSize < 2) {
+                        printf("OPTION SIZE < 2!!!\n");
+                        ok = 0;
+                        break;
+                    }
 
                     const uint optionCode = *(u8*)option;
                     const uint optionSize = *(u8*)(option + 1) * 8;
                     const void* const optionValue = option + 2;
 
-                    if (optionSize == 0) {
-                        // INVALID
-                        printf("OPTION SIZE 0!!!\n");
-                        break;
-                    }
                     if ((msg + msgSize) < (option + optionSize)) {
-                        // INCOMPLETE
                         printf("OPTION INCOMPLETE!!!\n");
+                        ok = 0;
                         break;
                     }
+
                     if (optionCode == 0x03) { // TODO: FIXME: VALIDAR optionSize
                         // TYPE: PREFIX INFORMATION
                         const uint prefixLen = *(u8*)optionValue;
@@ -190,6 +200,7 @@ int main (int argsN, char** args) {
                             prefixNew = prefix;
                         } else {
                             // INVALID
+                            ok = 0;
                         }
                     } elif (optionCode == 0x05) {
                         // MTU
@@ -210,9 +221,10 @@ int main (int argsN, char** args) {
                     // TODO: FIXME: USAR source link-address option (1), length 8 (1): dc:d9:ae:7e:2b:90 PARA RECONHECER OROTEADOR/INTERFACE E ENTÃO TERSÓUMDAEMON
                     // itfc route-mac table rule
                     option += optionSize;
+                    msgSize -= optionSize;
                 }
 
-                if (mac && prefixNew && prefixLenNew) {
+                if (ok && mac && prefixNew && prefixLenNew) {
                     // AGORA LIDÁ COM A MENSAGEM QUE FOI CARREGADA
                     int unhandled = 1;
                     for (uint linkID = 0; linkID != linksN; linkID++) { Link* const link = &links[linkID];
