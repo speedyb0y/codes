@@ -345,7 +345,7 @@ int main (int argsN, char** args) {
                                     ntohs(((u16*)ipGenerated)[7])
                                     );
 
-                                IP("-6 addr add dev %s %s", link->itfc, ip);
+                                IP("-6 addr add dev %s %s", link->itfc, ip); //  TODO: FIXME: NO DAD
                                 IP("-6 route flush table %u", table);
                                 IP("-6 route add table %u src %s dev %s %s", table, ip, link->itfc, link->gwIP);
                                 IP("-6 route add table %u src %s dev %s default via %s", table, ip, link->itfc, link->gwIP);
