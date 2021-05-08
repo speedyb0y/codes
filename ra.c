@@ -58,23 +58,24 @@ static inline u64 rdtsc (void) {
 typedef struct Link Link;
 
 struct Link {
-    char* itfc;
-    char* gwIP;
-    u16 table;
+    const char* itfc;
+    const char* gwIP;
     u8 gwMAC[MAC_SIZE];
-    u8 prefix[IPV6_ADDR_SIZE];
+    u16 table;
     u32 mtu;
-    u32 prefixLen;
+    u16 addrsN;
+    u16 prefixLen;
+    u8 prefix[IPV6_ADDR_SIZE];
 };
 
 int main (int argsN, char** args) {
 
-    if (argsN % 4 != 1) {
-        printf("USAGE: ra ITFC TABLE GW_IP GW_MAC ... \n");
+    if (argsN % 5 != 1) {
+        printf("USAGE: ra ITFC TABLE GW_IP GW_MAC ADDRS_N ... \n");
         return 1;
     }
 
-    const uint linksN = (argsN - 1) / 4;
+    const uint linksN = (argsN - 1) / 5;
 
     Link links[16];
 
@@ -82,39 +83,53 @@ int main (int argsN, char** args) {
 
     for (uint i = 0; i != linksN; i++) {
 
-        const int table = atoi(args[1]);
+        const char* const _itfc   = args[0];
+        const char* const _table  = args[1];
+        const char* const _gwIP   = args[2];
+              char* const _gwMAC  = args[3];
+        const char* const _addrsN = args[4];
 
-        if (table < 1 ||
+        const uint table = atoi(_table);
+        const uint addrsN = atoi(_addrsN);
+
+        if (table == 0 ||
             table > 32000) {
-            printf("BAD TABLE %s\n", args[1]);
+            printf("BAD TABLE %s\n", _table);
             return 1;
         }
 
-        if (strlen(args[3]) != MAC_STR_SIZE) {
-            printf("BAD GW MAC %s\n", args[3]);
+        if (addrsN == 0 ||
+            addrsN > 1000) {
+            printf("BAD TABLE %s\n", _addrsN);
             return 1;
         }
 
-        args[3][ 2] = '\x00';
-        args[3][ 5] = '\x00';
-        args[3][ 8] = '\x00';
-        args[3][11] = '\x00';
-        args[3][14] = '\x00';
+        if (strlen(_gwMAC) != MAC_STR_SIZE) {
+            printf("BAD GW MAC %s\n", _gwMAC);
+            return 1;
+        }
 
-        links[i].itfc = args[0];
+        _gwMAC[ 2] = '\x00';
+        _gwMAC[ 5] = '\x00';
+        _gwMAC[ 8] = '\x00';
+        _gwMAC[11] = '\x00';
+        _gwMAC[14] = '\x00';
+
+        links[i].itfc = _itfc;
         links[i].table = table;
-        links[i].gwIP = args[2];
-        links[i].gwMAC[0] = strtoul(args[3] +  0, NULL, 16);
-        links[i].gwMAC[1] = strtoul(args[3] +  3, NULL, 16);
-        links[i].gwMAC[2] = strtoul(args[3] +  6, NULL, 16);
-        links[i].gwMAC[3] = strtoul(args[3] +  9, NULL, 16);
-        links[i].gwMAC[4] = strtoul(args[3] + 12, NULL, 16);
-        links[i].gwMAC[5] = strtoul(args[3] + 15, NULL, 16);
         links[i].prefixLen = 0;
         links[i].prefix[0] = 0;
         links[i].mtu = 0;
+        links[i].addrsN = addrsN;
+        links[i].gwIP = _gwIP;
+        links[i].gwMAC[0] = strtoul(_gwMAC +  0, NULL, 16);
+        links[i].gwMAC[1] = strtoul(_gwMAC +  3, NULL, 16);
+        links[i].gwMAC[2] = strtoul(_gwMAC +  6, NULL, 16);
+        links[i].gwMAC[3] = strtoul(_gwMAC +  9, NULL, 16);
+        links[i].gwMAC[4] = strtoul(_gwMAC + 12, NULL, 16);
+        links[i].gwMAC[5] = strtoul(_gwMAC + 15, NULL, 16);
 
-        args += 4;
+        args += 5;
     }
 
     const int sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
@@ -286,7 +301,7 @@ int main (int argsN, char** args) {
                             ((u64*)ipGenerated)[0] +=  ((u64*)ipGenerated)[1] + time(NULL);
                             ((u64*)ipGenerated)[1] += ~((u64*)ipGenerated)[0] + rdtsc();
 
-                            for (uint i = 0; i != 32; i++) {
+                            for (uint i = 0; i != link->addrsN; i++) {
 
                                 u64 r[IPV6_ADDR_SIZE/sizeof(u64)]; getrandom(r, sizeof(r), 0);
 
