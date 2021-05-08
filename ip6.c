@@ -76,14 +76,18 @@ int main (int argsN, char** args) {
         const char* const _prefix = args[5];
         const char* const _pLen   = args[6]; args += 7;
 
-        { struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, _itfcI, IFNAMSIZ - 1);
+        const char* const itfcI = _itfcI;
+
+        { struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, itfcI, IFNAMSIZ - 1);
             if (ioctl(sock, SIOCGIFINDEX, &ifr) == -1) {
                 printf("BAD INTERFACE IN %s\n", _itfcI);
                 return 1;
             }
         }
 
-        { struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, _itfcO, IFNAMSIZ - 1);
+        const char* const itfcO = _itfcO;
+
+        { struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, itfcO, IFNAMSIZ - 1);
             if (ioctl(sock, SIOCGIFINDEX, &ifr) == -1) {
                 printf("BAD INTERFACE OUT %s\n", _itfcO);
                 return 1;
@@ -92,7 +96,7 @@ int main (int argsN, char** args) {
 
         uint table = atoi(_table);
 
-        if (table == 0 ||
+        if (table < 2 ||
             table > 32000) {
             printf("BAD TABLE %s\n", _table);
             return 1;
@@ -100,18 +104,28 @@ int main (int argsN, char** args) {
 
         const uint addrsN = atoi(_addrsN);
 
-        if (addrsN == 0 ||
+        if (addrsN < 1 ||
             addrsN > 1000) {
-            printf("BAD TABLE %s\n", _addrsN);
+            printf("BAD ADDRESSES N %s\n", _addrsN);
             return 1;
         }
 
-        const char* const itfcI = _itfcI;
-        const char* const itfcO = _itfcO;
-
         const uint prefixLen = atoi(_pLen);
 
+        if (prefixLen < 16 ||
+            prefixLen > 96) {
+            printf("BAD PREFIX LENGTH %s\n", _pLen);
+            return 1;
+        }
+
         const char* const gwIP = _gwIP;
+
+        { u8 gwIP_[IPV6_ADDR_SIZE];
+            if (inet_pton(AF_INET6, gwIP, &gwIP_) != 1) {
+                printf("BAD GW IP %s\n", _gwIP);
+                return 1;
+            }
+        }
 
         u8 prefix[IPV6_ADDR_SIZE];
 
