@@ -41,7 +41,7 @@ static inline u64 rdtsc (void) {
     return ((u64)hi << 32) | lo;
 }
 
-#define IP(fmt, ...) ({ char cmd[512]; snprintf(cmd, sizeof(cmd), "ip " fmt, ##__VA_ARGS__); printf(" -> %s\n", cmd); system(cmd); })
+#define IP(fmt, ...) ({ char cmd[512]; snprintf(cmd, sizeof(cmd), "true ip " fmt, ##__VA_ARGS__); printf(" -> %s\n", cmd); system(cmd); })
 
 int main (int argsN, char** args) {
 
@@ -68,23 +68,29 @@ int main (int argsN, char** args) {
 
     for (uint i = 0; i != linksN; i++) {
 
-        const char* const _itfc   = args[0];
-        const char* const _table  = args[1];
-        const char* const _gwIP   = args[2];
-              char* const _gwMAC  = args[3];
+        const char* const _itfcI  = args[0];
+        const char* const _itfcO  = args[1];
+        const char* const _table  = args[2];
+        const char* const _gwIP   = args[3];
         const char* const _addrsN = args[4];
         const char* const _prefix = args[5];
         const char* const _pLen   = args[6]; args += 7;
 
-        uint table = atoi(_table);
-        const uint addrsN = atoi(_addrsN);
-
-        struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, _itfc, IFNAMSIZ - 1);
-
-        if (ioctl(sock, SIOCGIFINDEX, &ifr) == -1) {
-            printf("BAD INTERFACE %s\n", _itfc);
-            return 1;
+        { struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, _itfcI, IFNAMSIZ - 1);
+            if (ioctl(sock, SIOCGIFINDEX, &ifr) == -1) {
+                printf("BAD INTERFACE IN %s\n", _itfcI);
+                return 1;
+            }
         }
+
+        { struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, _itfcO, IFNAMSIZ - 1);
+            if (ioctl(sock, SIOCGIFINDEX, &ifr) == -1) {
+                printf("BAD INTERFACE OUT %s\n", _itfcO);
+                return 1;
+            }
+        }
+
+        uint table = atoi(_table);
 
         if (table == 0 ||
             table > 32000) {
@@ -92,39 +98,20 @@ int main (int argsN, char** args) {
             return 1;
         }
 
+        const uint addrsN = atoi(_addrsN);
+
         if (addrsN == 0 ||
             addrsN > 1000) {
             printf("BAD TABLE %s\n", _addrsN);
             return 1;
         }
 
-        if (strlen(_gwMAC) != MAC_STR_SIZE) {
-            printf("BAD GW MAC %s\n", _gwMAC);
-            return 1;
-        }
-
-        const char* const itfc = _itfc;
+        const char* const itfcI = _itfcI;
+        const char* const itfcO = _itfcO;
 
         const uint prefixLen = atoi(_pLen);
 
-        const uint mtu = 0;
-
         const char* const gwIP = _gwIP;
-
-        _gwMAC[ 2] = '\x00';
-        _gwMAC[ 5] = '\x00';
-        _gwMAC[ 8] = '\x00';
-        _gwMAC[11] = '\x00';
-        _gwMAC[14] = '\x00';
-
-        const u8 gwMAC[MAC_SIZE] = {
-            strtoul(_gwMAC +  0, NULL, 16),
-            strtoul(_gwMAC +  3, NULL, 16),
-            strtoul(_gwMAC +  6, NULL, 16),
-            strtoul(_gwMAC +  9, NULL, 16),
-            strtoul(_gwMAC + 12, NULL, 16),
-            strtoul(_gwMAC + 15, NULL, 16),
-            };  (void)gwMAC;
 
         u8 prefix[IPV6_ADDR_SIZE];
 
@@ -133,14 +120,9 @@ int main (int argsN, char** args) {
             return 1;
         }
 
-        //uint prefixValidLT = 0;
-        //uint prefixPreferredLT = 0;
+        // TODO: FIXME: APAGAR TODOS COM TAL itfcI E PREFIXO
+        //IP("-6 addr flush dev %s", itfcO);
 
-        (void)mtu;
-
-        IP("-6 addr flush dev %s", itfc);
-
-        //
         ((u64*)ipGenerated)[0] +=  ((u64*)ipGenerated)[1] + time(NULL);
         ((u64*)ipGenerated)[1] += ~((u64*)ipGenerated)[0] + rdtsc();
 
@@ -180,10 +162,10 @@ int main (int argsN, char** args) {
                 ntohs(((u16*)ipGenerated)[7])
                 );
 
-            IP("-6 addr add dev %s %s", itfc, ip);
+            IP("-6 addr add dev %s %s", itfcI, ip);
             IP("-6 route flush table %u", table);
-            IP("-6 route add table %u src %s dev %s %s", table, ip, itfc, gwIP);
-            IP("-6 route add table %u src %s dev %s default via %s", table, ip, itfc, gwIP);
+            IP("-6 route add table %u src %s dev %s %s", table, ip, itfcO, gwIP);
+            IP("-6 route add table %u src %s dev %s default via %s", table, ip, itfcO, gwIP);
 
             table++;
         }
