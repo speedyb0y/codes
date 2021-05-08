@@ -240,7 +240,7 @@ int main (int argsN, char** args) {
                     ok = 0;
                 }
 
-                if (ok && mac && prefix) {
+                if (ok) {
                     // AGORA LIDÁ COM A MENSAGEM QUE FOI CARREGADA
 
                     if (1) {
