@@ -35,6 +35,14 @@ typedef uint64_t u64;
 #define clear(addr, size) memset(addr, 0, size)
 #define copy(src, size, dst) memcpy(dst, src, size)
 
+#define OPTION_GW_MAC              0x01U
+#define OPTION_PREFIX_INFORMATION  0x03U
+#define OPTION_MTU                 0x05U
+
+#define IPV6_ADDR_SIZE 16
+#define MAC_SIZE 6
+#define MAC_STR_SIZE 17
+
 #define MSGS_N 64
 
 static inline u64 rdtsc (void) {
@@ -53,15 +61,11 @@ struct Link {
     char* itfc;
     char* gwIP;
     u16 table;
-    u8 gwMAC[6];
-    u8 prefix[16];
+    u8 gwMAC[MAC_SIZE];
+    u8 prefix[IPV6_ADDR_SIZE];
     u32 mtu;
     u32 prefixLen;
 };
-
-#define OPTION_GW_MAC              0x01U
-#define OPTION_PREFIX_INFORMATION  0x03U
-#define OPTION_MTU                 0x05U
 
 int main (int argsN, char** args) {
 
@@ -86,7 +90,7 @@ int main (int argsN, char** args) {
             return 1;
         }
 
-        if (strlen(args[3]) != 17) {
+        if (strlen(args[3]) != MAC_STR_SIZE) {
             printf("BAD GW MAC %s\n", args[3]);
             return 1;
         }
@@ -120,7 +124,7 @@ int main (int argsN, char** args) {
         return 1;
     }
 
-    u8 ipGenerated[16]; getrandom(ipGenerated, sizeof(ipGenerated), 0);
+    u8 ipGenerated[IPV6_ADDR_SIZE]; getrandom(ipGenerated, sizeof(ipGenerated), 0);
 
     ((u64*)ipGenerated)[0] += rdtsc()    + 0xAABBCCDD00112233ULL;
     ((u64*)ipGenerated)[1] += time(NULL) + 0x4455667700119988ULL;
@@ -254,11 +258,11 @@ int main (int argsN, char** args) {
                         if (memcmp(link->gwMAC, mac, 6))
                             continue;
                         unhandled = 0;
-                        if (memcmp(link->prefix, prefix, 16) || link->prefixLen != prefixLen) {
+                        if (memcmp(link->prefix, prefix, IPV6_ADDR_SIZE) || link->prefixLen != prefixLen) {
                             // É DESTE LINK, E ELE MUDOU
 
                             // PASSA A USAR ELE
-                            memcpy(link->prefix, prefix, 16); link->prefixLen = prefixLen;
+                            memcpy(link->prefix, prefix, IPV6_ADDR_SIZE); link->prefixLen = prefixLen;
 
                             //
                             char prefix[64]; char ip[64];
@@ -284,7 +288,7 @@ int main (int argsN, char** args) {
 
                             for (uint i = 0; i != 32; i++) {
 
-                                u64 r[2]; getrandom(r, sizeof(r), 0);
+                                u64 r[IPV6_ADDR_SIZE/sizeof(u64)]; getrandom(r, sizeof(r), 0);
 
                                 ((u64*)ipGenerated)[0] += r[0] + 0x12E4A91CULL;
                                 ((u64*)ipGenerated)[1] += r[1] + 0x3402AAACULL;
