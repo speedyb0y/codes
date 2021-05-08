@@ -41,7 +41,7 @@ static inline u64 rdtsc (void) {
     return ((u64)hi << 32) | lo;
 }
 
-#define IP(fmt, ...) ({ char cmd[512]; snprintf(cmd, sizeof(cmd), "true ip " fmt, ##__VA_ARGS__); printf(" -> %s\n", cmd); system(cmd); })
+#define IP(fmt, ...) ({ char cmd[512]; snprintf(cmd, sizeof(cmd), "ip " fmt, ##__VA_ARGS__); printf(" -> %s\n", cmd); system(cmd); })
 
 int main (int argsN, char** args) {
 
