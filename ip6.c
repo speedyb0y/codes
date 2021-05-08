@@ -46,7 +46,7 @@ static inline u64 rdtsc (void) {
 int main (int argsN, char** args) {
 
     if (argsN % 7 != 1) {
-        printf("USAGE: ip6 ITFC TABLE GW_IP GW_MAC ADDRS_N PREFIX PREFIX_LEN ... \n");
+        printf("USAGE: ip6 ITFC_IN ITFC_OUT TABLE GW_IP ADDRS_N PREFIX PREFIX_LEN ... \n");
         return 1;
     }
 
