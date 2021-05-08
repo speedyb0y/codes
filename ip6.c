@@ -30,10 +30,6 @@ typedef uint16_t u16;
 typedef uint32_t u32;
 typedef uint64_t u64;
 
-#define OPTION_GW_MAC              0x01U
-#define OPTION_PREFIX_INFORMATION  0x03U
-#define OPTION_MTU                 0x05U
-
 #define IPV6_ADDR_SIZE 16
 #define MAC_SIZE 6
 #define MAC_STR_SIZE 17
