@@ -12,6 +12,7 @@
 #include <sys/stat.h>
 #include <sys/time.h>
 #include <sys/random.h>
+#include <sys/ioctl.h>
 #include <net/if.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
@@ -75,6 +76,13 @@ int main (int argsN, char** args) {
         return 1;
     }
 
+    const int sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
+
+    if (sock == -1) {
+        printf("ERROR: FAILED TO OPEN SOCKET: %s\n", strerror(errno));
+        return 1;
+    }
+
     const uint linksN = (argsN - 1) / 5;
 
     Link links[16];
@@ -91,6 +99,19 @@ int main (int argsN, char** args) {
 
         const uint table = atoi(_table);
         const uint addrsN = atoi(_addrsN);
+
+        struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, _itfc, IFNAMSIZ - 1);
+
+        if (ioctl(sock, SIOCGIFINDEX, &ifr) == -1) {
+            printf("BAD INTERFACE %s\n", _itfc);
+            return 1;
+        }
+
+       //short           ifr_flags;
+       //int             ifr_ifindex;
+       //int             ifr_metric;
+       //int             ifr_mtu;
+       //struct ifmap    ifr_map;
 
         if (table == 0 ||
             table > 32000) {
@@ -130,13 +151,6 @@ int main (int argsN, char** args) {
         links[i].gwMAC[5] = strtoul(_gwMAC + 15, NULL, 16);
 
         args += 5;
-    }
-
-    const int sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
-
-    if (sock == -1) {
-        printf("ERROR: FAILED TO OPEN SOCKET: %s\n", strerror(errno));
-        return 1;
     }
 
     u8 ipGenerated[IPV6_ADDR_SIZE]; getrandom(ipGenerated, sizeof(ipGenerated), 0);
@@ -210,7 +224,7 @@ int main (int argsN, char** args) {
                     const uint optionSize = *(u8*)(option + 1) * 8;
                     const void* const optionValue = option + 2;
 
-                    if ((msg + msgSize) < (option + optionSize)) {
+                    if (msgSize < optionSize) {
                         printf("OPTION INCOMPLETE!!!\n");
                         ok = 0;
                         break;
@@ -260,19 +274,21 @@ int main (int argsN, char** args) {
                 if (ok) {
                     // AGORA LIDÁ COM A MENSAGEM QUE FOI CARREGADA
 
-                    if (1) {
-                        printf("OPTION PREFIX INFORMATION - FLAGS %02X VALIDLT %u PREFERREDLT %u RESERVED %u\n", prefixFlags, prefixValidLT, prefixPreferredLT, prefixReserved);
-                        printf("OPTION GW MAC - %02X:%02X:%02X:%02X:%02X:%02X\n",
-                            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-                        printf("OPTION MTU - MTU %u\n", mtu);
-                    }
+                    if (0)
+                        printf("GW MAC %02X:%02X:%02X:%02X:%02X:%02X MTU %u PREFIX FLAGS %02X VALIDLT %u PREFERREDLT %u PREFIX RESERVED %u\n",
+                            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mtu,
+                            prefixFlags, prefixValidLT, prefixPreferredLT, prefixReserved
+                            );
 
                     int unhandled = 1;
 
                     for (uint linkID = 0; linkID != linksN; linkID++) { Link* const link = &links[linkID];
+
                         if (memcmp(link->gwMAC, mac, 6))
                             continue;
+
                         unhandled = 0;
+
                         if (memcmp(link->prefix, prefix, IPV6_ADDR_SIZE) || link->prefixLen != prefixLen) {
                             // É DESTE LINK, E ELE MUDOU
 
