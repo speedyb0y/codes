@@ -319,10 +319,13 @@ int main (int argsN, char** args) {
 
                             for (uint i = 0; i != link->addrsN; i++) {
 
-                                u64 r[IPV6_ADDR_SIZE/sizeof(u64)]; getrandom(r, sizeof(r), 0);
+                                u8 r[IPV6_ADDR_SIZE]; getrandom(r, sizeof(r), 0);
 
-                                ((u64*)ipGenerated)[0] += r[0] + 0x12E4A91CULL;
-                                ((u64*)ipGenerated)[1] += r[1] + 0x3402AAACULL;
+                                ((u64*)ipGenerated)[0] +=
+                                ((u64*)ipGenerated)[1];
+
+                                ((u64*)ipGenerated)[0] += ((u64*)r)[0] + 0x12E4A91CULL;
+                                ((u64*)ipGenerated)[1] += ((u64*)r)[1] + 0x3402AAACULL;
 
                                 // OVERWRITE O PREFIXO
                                 uint remaining = prefixLen;
