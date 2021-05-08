@@ -224,8 +224,6 @@ int main (int argsN, char** args) {
                                 printf("OPTION 0x%02X - SIZE %u\n", optionCode, optionSize);
                     }
 
-                    // TODO: FIXME: USAR source link-address option (1), length 8 (1): dc:d9:ae:7e:2b:90 PARA RECONHECER OROTEADOR/INTERFACE E ENTÃO TERSÓUMDAEMON
-                    // itfc route-mac table rule
                     option += optionSize;
                     msgSize -= optionSize;
                 }
