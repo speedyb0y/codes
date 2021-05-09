@@ -383,7 +383,8 @@ int main (int argsN, char** args) {
                             // É DESTE LINK, E ELE MUDOU
                             char linkPrefixStr[IPV6_PREFIX_STR_SIZE]; prefix6_to_str(link->prefix, link->prefixLen, linkPrefixStr);
 
-                            printf("GW MAC %02X:%02X:%02X:%02X:%02X:%02X MTU %u PREFIX %s FLAGS 0x%02X VALIDLT %u PREFERREDLT %u | LINK #%u ITFC %s CHANGED FROM %s\n",
+                            printf("GW MAC %02X:%02X:%02X:%02X:%02X:%02X MTU %u PREFIX %s FLAGS 0x%02X VALIDLT %u PREFERREDLT %u | "
+                                "LINK #%u ITFC %s CHANGED FROM %s\n",
                                 mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mtu, prefixStr,
                                 prefixFlags, prefixValidLT, prefixPreferredLT, linkID, link->itfc, linkPrefixStr
                                 );
@@ -446,7 +447,8 @@ int main (int argsN, char** args) {
                             printf("   -- DONE\n\n");
                         }
                     } else
-                        printf("GW MAC %02X:%02X:%02X:%02X:%02X:%02X MTU %u PREFIX %s FLAGS 0x%02X VALIDLT %u PREFERREDLT %u | UNKNOWN RA\n",
+                        printf("GW MAC %02X:%02X:%02X:%02X:%02X:%02X MTU %u PREFIX %s FLAGS 0x%02X VALIDLT %u PREFERREDLT %u | "
+                            "UNKNOWN RA\n",
                             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mtu, prefixStr,
                             prefixFlags, prefixValidLT, prefixPreferredLT
                             );
