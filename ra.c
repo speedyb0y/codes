@@ -419,7 +419,8 @@ int main (int argsN, char** args) {
                                 IP("-6 rule flush priority %u", ruleMark);
                                 IP("-6 rule flush priority %u", ruleFrom);
                                 IP("-6 route flush table %u", table);
-                                IP("-6 addr del dev %s OLD_IP/128", link->itfc);
+                                if (link->prefixLen) // SÓ SE REALMENTE HAVIA COLOCADO UM ANTES
+                                    IP("-6 addr del dev %s OLD_IP/128", link->itfc);
 
                                 ip6_random_gen(addr);
                                 ip6_prefix(addr, prefix, prefixLen);
@@ -441,6 +442,8 @@ int main (int argsN, char** args) {
 
                     if (unhandled)
                         printf("UNKNOWN RA\n");
+                    else
+                        printf("-- DONE\n\n");
                 }
             }
         }
