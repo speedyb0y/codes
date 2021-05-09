@@ -85,12 +85,8 @@ static void ip6_to_str (const u8* const restrict prefix, char* const restrict pr
         ntohs(((u16*)prefix)[7])
         );
 #else
-        char prefixStr_[512];
-
-        if (inet_ntop(AF_INET6, prefix, prefixStr_, sizeof(prefixStr_)) != prefixStr_)
-            prefixStr_[0] = '\x00';
-
-        snprintf(prefixStr, IPV6_ADDR_STR_SIZE, "%s", prefixStr_);
+        if (inet_ntop(AF_INET6, prefix, prefixStr, IPV6_ADDR_STR_SIZE) != prefixStr)
+            *prefixStr = '\x00';
 #endif
 }
 
