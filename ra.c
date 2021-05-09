@@ -279,7 +279,7 @@ int main (int argsN, char** args) {
 
     loop {
 
-        int msgsN = recvmmsg(sock, msgs, MSGS_N, MSG_WAITFORONE, NULL);
+        const int msgsN = recvmmsg(sock, msgs, MSGS_N, MSG_WAITFORONE, NULL);
 
         if (msgsN == -1) {
             if (errno != EINTR)
@@ -465,13 +465,9 @@ int main (int argsN, char** args) {
             }
         }
 
-        // TODO: FIXME: SÓ O QUE DE FATO FOI SOBRESCRITO
-        while (msgsN--) {
-            msgs[msgsN].msg_hdr.msg_iov = &iovs[msgsN];
-            msgs[msgsN].msg_hdr.msg_iovlen = 1;
-            msgs[msgsN].msg_hdr.msg_flags = 0;
-            iovs[msgsN].iov_base = &buffs[msgsN];
-            iovs[msgsN].iov_len = sizeof(buffs[msgsN]);
-        }
+        //while (msgsN--) {
+            //iovs[msgsN].iov_base = &buffs[msgsN];
+            //iovs[msgsN].iov_len = sizeof(buffs[msgsN]);
+        //}
     }
 }
