@@ -320,14 +320,12 @@ int main (int argsN, char** args) {
 
                 while (msgSize) {
 
-                    if (msgSize > 2048) { // OVERFLOW
-                        printf("ERROR: LEU DEMAIS\n");
+                    if (msgSize > 2048) { // OVERFLOW - MESSAGE INCOMPLETE
                         ok = 0;
                         break;
                     }
 
-                    if (msgSize < 2) {
-                        printf("OPTION SIZE < 2!!!\n");
+                    if (msgSize < 2) { // LESS THAN A MINIMAL OPTION SIZE
                         ok = 0;
                         break;
                     }
@@ -336,8 +334,7 @@ int main (int argsN, char** args) {
                     const uint optionSize = *(u8*)(option + 1) * 8;
                     const void* const optionValue = option + 2;
 
-                    if (msgSize < optionSize) {
-                        printf("OPTION INCOMPLETE!!!\n");
+                    if (msgSize < optionSize) { // OPTION INCOMPLETE
                         ok = 0;
                         break;
                     }
@@ -367,7 +364,7 @@ int main (int argsN, char** args) {
                 }
 
                 if (ok) {
-
+                    printf("MESSAGE INCOMPLETE\n");
                 } elif (prefixLen < 32 ||
                         prefixLen > 90) {
                     printf("INVALID PREFIX SIZE\n");
@@ -376,7 +373,6 @@ int main (int argsN, char** args) {
                 } elif (!prefix) {
                     printf("MISSING PREFIX\n");
                 } else {
-                    // AGORA LIDÁ COM A MENSAGEM QUE FOI CARREGADA
 
                     if (1) {
                         char prefixStr[IPV6_PREFIX_STR_SIZE];
