@@ -37,7 +37,8 @@ typedef uint64_t u64;
 #define OPTION_PREFIX_INFORMATION  0x03U
 #define OPTION_MTU                 0x05U
 
-#define IPV6_ADDR_STR_SIZE 64
+#define IPV6_ADDR_STR_SIZE 128
+#define IPV6_PREFIX_STR_SIZE 128
 
 #define IPV6_ADDR_SIZE 16
 #define MAC_SIZE 6
@@ -71,7 +72,7 @@ struct Link {
     void* addrs;
 };
 
-static inline void ipv6_addr (char* const restrict prefixStr, const u8* const restrict prefix) {
+static inline void ip6_to_str (const u8* const restrict prefix, char* const restrict prefixStr) {
 #if 0
     snprintf(prefixStr, IPV6_ADDR_STR_SIZE, "%X:%X:%X:%X:%X:%X:%X:%X",
         ntohs(((u16*)prefix)[0]),
@@ -93,9 +94,9 @@ static inline void ipv6_addr (char* const restrict prefixStr, const u8* const re
 #endif
 }
 
-static inline void ipv6_prefix (char* const restrict prefixStr, const uint prefixStrSize, const u8* const restrict prefix, const uint prefixLen) {
+static inline void prefix6_to_str (const u8* const restrict prefix, const uint prefixLen, char* const restrict prefixStr) {
 #if 0
-    snprintf(prefixStr, prefixStrSize, "%X:%X:%X:%X:%X:%X:%X:%X/%u",
+    snprintf(prefixStr, IPV6_PREFIX_STR_SIZE, "%X:%X:%X:%X:%X:%X:%X:%X/%u",
         ntohs(((u16*)prefix)[0]),
         ntohs(((u16*)prefix)[1]),
         ntohs(((u16*)prefix)[2]),
@@ -106,13 +107,62 @@ static inline void ipv6_prefix (char* const restrict prefixStr, const uint prefi
         ntohs(((u16*)prefix)[7]),
         prefixLen);
 #else
-        char prefixStr_[512];
+    char prefixStr_[512];
 
-        if (inet_ntop(AF_INET6, prefix, prefixStr_, sizeof(prefixStr_)) != prefixStr_)
-            prefixStr_[0] = '\x00';
+    if (inet_ntop(AF_INET6, prefix, prefixStr_, sizeof(prefixStr_)) != prefixStr_)
+        prefixStr_[0] = '\x00';
 
-        snprintf(prefixStr, prefixStrSize, "%s/%u", prefixStr_, prefixLen);
+    snprintf(prefixStr, IPV6_PREFIX_STR_SIZE, "%s/%u", prefixStr_, prefixLen);
 #endif
+}
+
+static u8 ip6Random[IPV6_ADDR_SIZE];
+
+static void ip6_random_init (void) {
+
+    getrandom(ip6Random, sizeof(ip6Random), 0);
+
+    ((u64*)ip6Random)[0] += rdtsc()    + 0xAABBCCDD00112233ULL;
+    ((u64*)ip6Random)[1] += time(NULL) + 0x4455667700119988ULL;
+}
+
+static void ip6_random_update (void) {
+
+    ((u64*)ip6Random)[1] += time(NULL);
+    ((u64*)ip6Random)[0] += rdtsc();
+}
+
+static void ip6_random_gen (void* const ip) {
+
+    u8 r[IPV6_ADDR_SIZE]; getrandom(r, sizeof(r), 0);
+
+    ((u64*)ip)[0] +=
+    ((u64*)ip)[1];
+
+    ((u64*)ip)[0] += 0x12E4A91CULL;
+    ((u64*)ip)[1] += 0x3402AAACULL;
+
+    ((u64*)ip)[0] += ((u64*)r)[0];
+    ((u64*)ip)[1] += ((u64*)r)[1];
+
+    ((u64*)ip)[0] += ((u64*)ip6Random)[0];
+    ((u64*)ip)[1] += ((u64*)ip6Random)[1];
+}
+
+static void ip6_prefix (u8* const restrict ip, const u8* const restrict prefix, const uint prefixLen) {
+
+    // OVERWRITE O PREFIXO
+    uint remaining = prefixLen;
+    uint offset = 0;
+
+    while (remaining) {
+        const uint amount = (remaining < 8) ? remaining : 8;
+        const uint mask = (0xFFU << (8 - amount)) & 0xFFU;
+        ip[offset] &= ~mask;
+        ip[offset] |= prefix[offset] & mask;
+        offset++;
+        remaining -= amount;
+    }
 }
 
 int main (int argsN, char** args) {
@@ -220,10 +270,7 @@ int main (int argsN, char** args) {
         memset(link->addrs, 0, sizeof(IPV6_ADDR_SIZE)*addrsN);
     }
 
-    u8 ipGenerated[IPV6_ADDR_SIZE]; getrandom(ipGenerated, sizeof(ipGenerated), 0);
-
-    ((u64*)ipGenerated)[0] += rdtsc()    + 0xAABBCCDD00112233ULL;
-    ((u64*)ipGenerated)[1] += time(NULL) + 0x4455667700119988ULL;
+    ip6_random_init();
 
     loop {
 
@@ -250,6 +297,8 @@ int main (int argsN, char** args) {
                 return 1;
             continue;
         }
+
+        ip6_random_update();
 
         for (int i = 0; i != msgsN; i++) {
 
@@ -359,57 +408,30 @@ int main (int argsN, char** args) {
                         if (memcmp(link->prefix, prefix, IPV6_ADDR_SIZE) || link->prefixLen != prefixLen) {
                             // É DESTE LINK, E ELE MUDOU
 
-                            char prefixStr[64]; char linkPrefixStr[64];
-
-                            ipv6_prefix(prefixStr, sizeof(prefixStr), prefix, prefixLen);
-                            ipv6_prefix(linkPrefixStr, sizeof(linkPrefixStr), link->prefix, link->prefixLen);
+                            char prefixStr    [IPV6_PREFIX_STR_SIZE]; prefix6_to_str(      prefix,       prefixLen,     prefixStr);
+                            char linkPrefixStr[IPV6_PREFIX_STR_SIZE]; prefix6_to_str(link->prefix, link->prefixLen, linkPrefixStr);
 
                             printf("LINK #%u ITFC %s PREFIX CHANGED %s -> %s\n", linkID, link->itfc, linkPrefixStr, prefixStr);
 
-                            ((u64*)ipGenerated)[0] +=  ((u64*)ipGenerated)[1] + time(NULL);
-                            ((u64*)ipGenerated)[1] += ~((u64*)ipGenerated)[0] + rdtsc();
-
                             for (uint i = 0; i != link->addrsN; i++) {
-
-                                u8 r[IPV6_ADDR_SIZE]; getrandom(r, sizeof(r), 0);
-
-                                ((u64*)ipGenerated)[0] +=
-                                ((u64*)ipGenerated)[1];
-
-                                ((u64*)ipGenerated)[0] += ((u64*)r)[0] + 0x12E4A91CULL;
-                                ((u64*)ipGenerated)[1] += ((u64*)r)[1] + 0x3402AAACULL;
-
-                                // OVERWRITE O PREFIXO
-                                uint remaining = prefixLen;
-                                uint offset = 0;
-
-                                while (remaining) {
-                                    const uint amount = (remaining < 8) ? remaining : 8;
-                                    const uint mask = (0xFFU << (8 - amount)) & 0xFFU;
-                                    ipGenerated[offset] &= ~mask;
-                                    ipGenerated[offset] |= link->prefix[offset] & mask;
-                                    offset++;
-                                    remaining -= amount;
-                                }
 
                                 char ip[64];
 
-                                //ipv6_addr(ip, ipGenerated);
-                                const uint table = link->table + i;
-                                const uint mark = link->mark + i;
+                                //ip6_to_str(ip, ipGenerated);
+                                const uint table    = link->table    + i;
+                                const uint mark     = link->mark     + i;
                                 const uint ruleMark = link->ruleMark + i;
                                 const uint ruleFrom = link->ruleFrom + i;
-
-                                u8* const addr = link->addrs + i*IPV6_ADDR_SIZE;
+                                u8* const addr      = link->addrs    + i*IPV6_ADDR_SIZE;
 
                                 IP("-6 rule flush priority %u", ruleMark);
                                 IP("-6 rule flush priority %u", ruleFrom);
                                 IP("-6 route flush table %u", table);
                                 IP("-6 addr del dev %s OLD_IP/128", link->itfc);
 
-                                memcpy(addr, ipGenerated, IPV6_ADDR_SIZE);
-
-                                ipv6_addr(ip, addr);
+                                ip6_random_gen(addr);
+                                ip6_prefix(addr, prefix, prefixLen);
+                                ip6_to_str(addr, ip);
 
                                 IP("-6 addr add dev %s %s/128 nodad", link->itfc, ip);
                                 IP("-6 route add table %u src %s dev %s %s", table, ip, link->itfc, link->gwIP);
