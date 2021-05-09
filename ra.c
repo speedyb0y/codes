@@ -366,23 +366,16 @@ int main (int argsN, char** args) {
                     msgSize -= optionSize;
                 }
 
-                if (prefixLen < 32 ||
-                    prefixLen > 90) {
-                    printf("INVALID PREFIX SIZE\n");
-                    ok = 0;
-                }
-
-                if (!mac) {
-                    printf("MISSING MAC\n");
-                    ok = 0;
-                }
-
-                if (!prefix) {
-                    printf("MISSING PREFIX\n");
-                    ok = 0;
-                }
-
                 if (ok) {
+
+                } elif (prefixLen < 32 ||
+                        prefixLen > 90) {
+                    printf("INVALID PREFIX SIZE\n");
+                } elif (!mac) {
+                    printf("MISSING MAC\n");
+                } elif (!prefix) {
+                    printf("MISSING PREFIX\n");
+                } else {
                     // AGORA LIDÁ COM A MENSAGEM QUE FOI CARREGADA
 
                     if (1) {
