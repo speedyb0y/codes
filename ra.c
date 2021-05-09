@@ -109,10 +109,10 @@ static void ip6_random_init (void) {
     ((u64*)ip6Random)[1] += time(NULL) + 0x4455667700119988ULL;
 }
 
-static void ip6_random_update (void) {
+static void ip6_random_update (const u64 feed) {
 
-    ((u64*)ip6Random)[1] += time(NULL);
-    ((u64*)ip6Random)[0] += rdtsc();
+    ((u64*)ip6Random)[1] += feed + time(NULL);
+    ((u64*)ip6Random)[0] += feed + rdtsc();
 }
 
 static void ip6_random_gen (void* const ip) {
@@ -281,7 +281,7 @@ int main (int argsN, char** args) {
             continue;
         }
 
-        ip6_random_update();
+        ip6_random_update(msgsN);
 
         for (int i = 0; i != msgsN; i++) {
 
