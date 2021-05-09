@@ -389,6 +389,9 @@ int main (int argsN, char** args) {
                                 prefixFlags, prefixValidLT, prefixPreferredLT, linkID, link->itfc, linkPrefixStr
                                 );
 
+                            // RULE: RULE6_DEFAULT_OI_PUB_PREFIX
+                            IP("-6 rule add prioriry %u table %u to %s", link->ruleFrom, link->table, prefixStr);
+
                             for (uint i = 0; i != link->addrsN; i++) {
 
                                 const uint table    = link->table    + i;
