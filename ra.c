@@ -378,26 +378,27 @@ int main (int argsN, char** args) {
                 if (ok) {
                     // AGORA LIDÁ COM A MENSAGEM QUE FOI CARREGADA
 
-                    if (1)
-                        printf("GW MAC %02X:%02X:%02X:%02X:%02X:%02X MTU %u PREFIX FLAGS 0x%02X VALIDLT %u PREFERREDLT %u PREFIX RESERVED 0x%08X\n",
-                            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mtu,
+                    if (1) {
+                        char prefixStr[IPV6_PREFIX_STR_SIZE];
+                        prefix6_to_str(prefix, prefixLen, prefixStr);
+                        printf("GW MAC %02X:%02X:%02X:%02X:%02X:%02X MTU %u PREFIX %s FLAGS 0x%02X VALIDLT %u PREFERREDLT %u PREFIX RESERVED 0x%08X\n",
+                            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mtu, prefixStr,
                             prefixFlags, prefixValidLT, prefixPreferredLT, prefixReserved
                             );
+                    }
 
-                    int unhandled = 1;
+                    uint linkID = 0;
 
-                    for (uint linkID = 0; linkID != linksN; linkID++) {
+                    while (linkID != linksN && memcmp(links[linkID].gwMAC, mac, MAC_SIZE))
+                        linkID++;
+
+                    if (linkID != linksN) {
 
                         Link* const link = &links[linkID];
 
-                        if (memcmp(link->gwMAC, mac, MAC_SIZE))
-                            continue;
-
-                        unhandled = 0;
-
                         if (memcmp(link->prefix, prefix, IPV6_ADDR_SIZE) || link->prefixLen != prefixLen) {
-                            // É DESTE LINK, E ELE MUDOU
 
+                            // É DESTE LINK, E ELE MUDOU
                             char prefixStr    [IPV6_PREFIX_STR_SIZE]; prefix6_to_str(      prefix,       prefixLen,     prefixStr);
                             char linkPrefixStr[IPV6_PREFIX_STR_SIZE]; prefix6_to_str(link->prefix, link->prefixLen, linkPrefixStr);
 
@@ -457,13 +458,11 @@ int main (int argsN, char** args) {
 
                             // PASSA A USAR ELE
                             memcpy(link->prefix, prefix, IPV6_ADDR_SIZE); link->prefixLen = prefixLen;
-                        }
-                    }
 
-                    if (unhandled)
+                            printf("   -- DONE\n\n");
+                        }
+                    } else
                         printf("UNKNOWN RA\n");
-                    else
-                        printf("-- DONE\n\n");
                 }
             }
         }
