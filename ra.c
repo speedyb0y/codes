@@ -405,13 +405,12 @@ int main (int argsN, char** args) {
 
                             printf("LINK #%u ITFC %s PREFIX CHANGED %s -> %s\n", linkID, link->itfc, linkPrefixStr, prefixStr);
 
+
                             for (uint i = 0; i != link->addrsN; i++) {
 
                                 char ip[64];
 
-                                //ip6_to_str(ip, ipGenerated);
                                 const uint table    = link->table    + i;
-                                const uint mark     = link->mark     + i;
                                 const uint ruleMark = link->ruleMark + i;
                                 const uint ruleFrom = link->ruleFrom + i;
                                 u8* const addr      = link->addrs    + i*IPV6_ADDR_SIZE;
@@ -424,6 +423,26 @@ int main (int argsN, char** args) {
 
                                 ip6_random_gen(addr);
                                 ip6_prefix(addr, prefix, prefixLen);
+                                ip6_to_str(addr, ip);
+
+                                IP("-6 addr add dev %s %s/128 nodad", link->itfc, ip);
+                            }
+
+                            IP("-6 route flush cache");
+
+                            sleep(3);
+
+                            for (uint i = 0; i != link->addrsN; i++) {
+
+                                char ip[64];
+
+                                //ip6_to_str(ip, ipGenerated);
+                                const uint table    = link->table    + i;
+                                const uint mark     = link->mark     + i;
+                                const uint ruleMark = link->ruleMark + i;
+                                const uint ruleFrom = link->ruleFrom + i;
+                                u8* const addr      = link->addrs    + i*IPV6_ADDR_SIZE;
+
                                 ip6_to_str(addr, ip);
 
                                 IP("-6 addr add dev %s %s/128 nodad", link->itfc, ip);
