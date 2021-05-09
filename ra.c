@@ -37,10 +37,10 @@ typedef uint64_t u64;
 #define OPTION_PREFIX_INFORMATION  0x03U
 #define OPTION_MTU                 0x05U
 
-#define IPV6_ADDR_STR_SIZE 128
-#define IPV6_PREFIX_STR_SIZE 128
-
 #define IPV6_ADDR_SIZE 16
+#define IPV6_ADDR_STR_SIZE   128
+#define IPV6_PREFIX_STR_SIZE 164
+
 #define MAC_SIZE 6
 #define MAC_STR_SIZE 17
 
@@ -72,7 +72,7 @@ struct Link {
     void* addrs;
 };
 
-static inline void ip6_to_str (const u8* const restrict prefix, char* const restrict prefixStr) {
+static void ip6_to_str (const u8* const restrict prefix, char* const restrict prefixStr) {
 #if 0
     snprintf(prefixStr, IPV6_ADDR_STR_SIZE, "%X:%X:%X:%X:%X:%X:%X:%X",
         ntohs(((u16*)prefix)[0]),
@@ -94,26 +94,13 @@ static inline void ip6_to_str (const u8* const restrict prefix, char* const rest
 #endif
 }
 
-static inline void prefix6_to_str (const u8* const restrict prefix, const uint prefixLen, char* const restrict prefixStr) {
-#if 0
-    snprintf(prefixStr, IPV6_PREFIX_STR_SIZE, "%X:%X:%X:%X:%X:%X:%X:%X/%u",
-        ntohs(((u16*)prefix)[0]),
-        ntohs(((u16*)prefix)[1]),
-        ntohs(((u16*)prefix)[2]),
-        ntohs(((u16*)prefix)[3]),
-        ntohs(((u16*)prefix)[4]),
-        ntohs(((u16*)prefix)[5]),
-        ntohs(((u16*)prefix)[6]),
-        ntohs(((u16*)prefix)[7]),
-        prefixLen);
-#else
-    char prefixStr_[512];
+static void prefix6_to_str (const u8* const restrict prefix, const uint prefixLen, char* const restrict prefixStr) {
 
-    if (inet_ntop(AF_INET6, prefix, prefixStr_, sizeof(prefixStr_)) != prefixStr_)
-        prefixStr_[0] = '\x00';
+    char prefixStr_[IPV6_ADDR_STR_SIZE];
+
+    ip6_to_str(prefix, prefixStr_);
 
     snprintf(prefixStr, IPV6_PREFIX_STR_SIZE, "%s/%u", prefixStr_, prefixLen);
-#endif
 }
 
 static u8 ip6Random[IPV6_ADDR_SIZE];
