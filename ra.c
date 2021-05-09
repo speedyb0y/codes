@@ -306,7 +306,6 @@ int main (int argsN, char** args) {
                 uint prefixFlags = 0;
                 uint prefixValidLT = 0;
                 uint prefixPreferredLT = 0;
-                uint prefixReserved = 0;
 
                 const void* option = msg + 16; msgSize -= 16;
 
@@ -341,8 +340,7 @@ int main (int argsN, char** args) {
                             prefixFlags = *(u8*)(optionValue + 1);
                             prefixValidLT = ntohl(*(u32*)(optionValue + 2));
                             prefixPreferredLT = ntohl(*(u32*)(optionValue + 6));
-                            prefixReserved = *(u32*)(optionValue + 10);
-                            prefix = optionValue + 14;
+                            prefix = optionValue + 14; // OBS.: tem também um u32 RESERVED
                             if (prefixLen < 32 ||
                                 prefixLen > 90) {
                                 printf("INVALID PREFIX SIZE\n");
@@ -381,9 +379,9 @@ int main (int argsN, char** args) {
                     if (1) {
                         char prefixStr[IPV6_PREFIX_STR_SIZE];
                         prefix6_to_str(prefix, prefixLen, prefixStr);
-                        printf("GW MAC %02X:%02X:%02X:%02X:%02X:%02X MTU %u PREFIX %s FLAGS 0x%02X VALIDLT %u PREFERREDLT %u PREFIX RESERVED 0x%08X\n",
+                        printf("GW MAC %02X:%02X:%02X:%02X:%02X:%02X MTU %u PREFIX %s FLAGS 0x%02X VALIDLT %u PREFERREDLT %u\n",
                             mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mtu, prefixStr,
-                            prefixFlags, prefixValidLT, prefixPreferredLT, prefixReserved
+                            prefixFlags, prefixValidLT, prefixPreferredLT
                             );
                     }
 
