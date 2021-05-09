@@ -406,26 +406,29 @@ int main (int argsN, char** args) {
                             printf("LINK #%u ITFC %s PREFIX CHANGED %s -> %s\n", linkID, link->itfc, linkPrefixStr, prefixStr);
 
 
-                            for (uint i = 0; i != link->addrsN; i++) {
+                            if (link->prefixLen) { // SÓ SE REALMENTE HAVIA COLOCADO UM ANTES
+                                for (uint i = 0; i != link->addrsN; i++) {
 
-                                char ip[64];
+                                    char ip[IPV6_ADDR_STR_SIZE];
 
-                                const uint table    = link->table    + i;
-                                const uint ruleMark = link->ruleMark + i;
-                                const uint ruleFrom = link->ruleFrom + i;
-                                u8* const addr      = link->addrs    + i*IPV6_ADDR_SIZE;
+                                    const uint table    = link->table    + i;
+                                    const uint ruleMark = link->ruleMark + i;
+                                    const uint ruleFrom = link->ruleFrom + i;
+                                    u8* const addr      = link->addrs    + i*IPV6_ADDR_SIZE;
 
-                                IP("-6 rule flush priority %u", ruleMark);
-                                IP("-6 rule flush priority %u", ruleFrom);
-                                IP("-6 route flush table %u", table);
-                                if (link->prefixLen) // SÓ SE REALMENTE HAVIA COLOCADO UM ANTES
-                                    IP("-6 addr del dev %s OLD_IP/128", link->itfc);
+                                    ip6_to_str(addr, ip);
 
-                                ip6_random_gen(addr);
-                                ip6_prefix(addr, prefix, prefixLen);
-                                ip6_to_str(addr, ip);
+                                    IP("-6 rule flush priority %u", ruleMark);
+                                    IP("-6 rule flush priority %u", ruleFrom);
+                                    IP("-6 route flush table %u", table);
+                                    IP("-6 addr del dev %s %s/128", link->itfc, ip);
 
-                                IP("-6 addr add dev %s %s/128 nodad", link->itfc, ip);
+                                    ip6_random_gen(addr);
+                                    ip6_prefix(addr, prefix, prefixLen);
+                                    ip6_to_str(addr, ip);
+
+                                    IP("-6 addr add dev %s %s/128 nodad", link->itfc, ip);
+                                }
                             }
 
                             IP("-6 route flush cache");
@@ -434,7 +437,7 @@ int main (int argsN, char** args) {
 
                             for (uint i = 0; i != link->addrsN; i++) {
 
-                                char ip[64];
+                                char ip[IPV6_ADDR_STR_SIZE];
 
                                 //ip6_to_str(ip, ipGenerated);
                                 const uint table    = link->table    + i;
