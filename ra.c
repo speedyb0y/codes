@@ -307,7 +307,6 @@ int main (int argsN, char** args) {
                 if (0)
                     printf("ADVERTISEMENT!!!\n");
 
-                int ok = 1;
                 const u8* mac = NULL;
                 const u8* prefix = NULL;
                 uint mtu = 0;
@@ -320,24 +319,18 @@ int main (int argsN, char** args) {
 
                 while (msgSize) {
 
-                    if (msgSize > 2048) { // OVERFLOW - MESSAGE INCOMPLETE
-                        ok = 0;
-                        break;
-                    }
+                    if (msgSize > 2048)
+                        break; // OVERFLOW - MESSAGE INCOMPLETE
 
-                    if (msgSize < 2) { // LESS THAN A MINIMAL OPTION SIZE
-                        ok = 0;
-                        break;
-                    }
+                    if (msgSize < 2)
+                        break; // LESS THAN A MINIMAL OPTION SIZE
 
                     const uint optionCode = *(u8*)option;
                     const uint optionSize = *(u8*)(option + 1) * 8;
                     const void* const optionValue = option + 2;
 
-                    if (msgSize < optionSize) { // OPTION INCOMPLETE
-                        ok = 0;
-                        break;
-                    }
+                    if (msgSize < optionSize)
+                        break; // OPTION INCOMPLETE
 
                     switch (optionCode) {
                         case OPTION_PREFIX_INFORMATION: // TODO: FIXME: VALIDAR optionSize
@@ -363,7 +356,7 @@ int main (int argsN, char** args) {
                     msgSize -= optionSize;
                 }
 
-                if (ok) {
+                if (msgSize) {
                     printf("MESSAGE INCOMPLETE\n");
                 } elif (prefixLen < 32 ||
                         prefixLen > 90) {
