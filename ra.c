@@ -72,21 +72,21 @@ struct Link {
     void* addrs;
 };
 
-static void ip6_to_str (const u8* const restrict prefix, char* const restrict prefixStr) {
+static void ip6_to_str (const u8* const restrict ip, char* const restrict ipStr) {
 #if 0
-    snprintf(prefixStr, IPV6_ADDR_STR_SIZE, "%X:%X:%X:%X:%X:%X:%X:%X",
-        ntohs(((u16*)prefix)[0]),
-        ntohs(((u16*)prefix)[1]),
-        ntohs(((u16*)prefix)[2]),
-        ntohs(((u16*)prefix)[3]),
-        ntohs(((u16*)prefix)[4]),
-        ntohs(((u16*)prefix)[5]),
-        ntohs(((u16*)prefix)[6]),
-        ntohs(((u16*)prefix)[7])
+    snprintf(ipStr, IPV6_ADDR_STR_SIZE, "%X:%X:%X:%X:%X:%X:%X:%X",
+        ntohs(((u16*)ip)[0]),
+        ntohs(((u16*)ip)[1]),
+        ntohs(((u16*)ip)[2]),
+        ntohs(((u16*)ip)[3]),
+        ntohs(((u16*)ip)[4]),
+        ntohs(((u16*)ip)[5]),
+        ntohs(((u16*)ip)[6]),
+        ntohs(((u16*)ip)[7])
         );
 #else
-        if (inet_ntop(AF_INET6, prefix, prefixStr, IPV6_ADDR_STR_SIZE) != prefixStr)
-            *prefixStr = '\x00';
+        if (inet_ntop(AF_INET6, ip, ipStr, IPV6_ADDR_STR_SIZE) != ipStr)
+            *ipStr = '\x00';
 #endif
 }
 
@@ -257,9 +257,9 @@ int main (int argsN, char** args) {
         link->gwMAC[4] = strtoul(_gwMAC + 12, NULL, 16);
         link->gwMAC[5] = strtoul(_gwMAC + 15, NULL, 16);
         link->addrsN = addrsN;
-        link->addrs = malloc(sizeof(IPV6_ADDR_SIZE)*addrsN);
+        link->addrs = malloc(addrsN * sizeof(IPV6_ADDR_SIZE));
 
-        memset(link->addrs, 0, sizeof(IPV6_ADDR_SIZE)*addrsN);
+        memset(link->addrs, 0, addrsN * sizeof(IPV6_ADDR_SIZE));
     }
 
     ip6_random_init();
