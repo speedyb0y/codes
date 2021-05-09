@@ -69,7 +69,7 @@ struct Link {
     u32 ruleMark;
     u32 ruleFrom;
     u8 prefix[IPV6_ADDR_SIZE];
-    void* addrs;
+    u8* addrs;
 };
 
 static void ip6_to_str (const u8* const restrict ip, char* const restrict ipStr) {
@@ -132,19 +132,15 @@ static void ip6_random_gen (void* const ip) {
     ((u64*)ip)[1] += ((u64*)ip6Random)[1];
 }
 
-static void ip6_prefix (u8* const restrict ip, const u8* const restrict prefix, const uint prefixLen) {
+// OVERWRITE O IP COM O PREFIXO
+static void ip6_prefix (u8* restrict ip, const u8* restrict prefix, uint prefixLen) {
 
-    // OVERWRITE O PREFIXO
-    uint remaining = prefixLen;
-    uint offset = 0;
-
-    while (remaining) {
-        const uint amount = (remaining < 8) ? remaining : 8;
+    while (prefixLen) {
+        const uint amount = (prefixLen < 8) ? prefixLen : 8;
         const uint mask = (0xFFU << (8 - amount)) & 0xFFU;
-        ip[offset] &= ~mask;
-        ip[offset] |= prefix[offset] & mask;
-        offset++;
-        remaining -= amount;
+        *ip &= ~mask;
+        *ip++ |= *prefix++ & mask;
+        prefixLen -= amount;
     }
 }
 
@@ -257,9 +253,9 @@ int main (int argsN, char** args) {
         link->gwMAC[4] = strtoul(_gwMAC + 12, NULL, 16);
         link->gwMAC[5] = strtoul(_gwMAC + 15, NULL, 16);
         link->addrsN = addrsN;
-        link->addrs = malloc(addrsN * sizeof(IPV6_ADDR_SIZE));
+        link->addrs = malloc(addrsN * IPV6_ADDR_SIZE);
 
-        memset(link->addrs, 0, addrsN * sizeof(IPV6_ADDR_SIZE));
+        memset(link->addrs, 0, addrsN * IPV6_ADDR_SIZE);
     }
 
     ip6_random_init();
@@ -390,9 +386,11 @@ int main (int argsN, char** args) {
 
                     int unhandled = 1;
 
-                    for (uint linkID = 0; linkID != linksN; linkID++) { Link* const link = &links[linkID];
+                    for (uint linkID = 0; linkID != linksN; linkID++) {
 
-                        if (memcmp(link->gwMAC, mac, 6))
+                        Link* const link = &links[linkID];
+
+                        if (memcmp(link->gwMAC, mac, MAC_SIZE))
                             continue;
 
                         unhandled = 0;
@@ -430,7 +428,7 @@ int main (int argsN, char** args) {
                                 ip6_prefix(addr, prefix, prefixLen);
                                 ip6_to_str(addr, ip);
 
-                                IP("-6 addr add dev %s %s/128 nodad", link->itfc, ip);
+                                IP("-6 addr add nodad dev %s %s/128", link->itfc, ip);
                             }
 
                             IP("-6 route flush cache");
@@ -439,11 +437,11 @@ int main (int argsN, char** args) {
 
                             for (uint i = 0; i != link->addrsN; i++) {
 
-                                const uint table    = link->table    + i;
-                                const uint mark     = link->mark     + i;
-                                const uint ruleMark = link->ruleMark + i;
-                                const uint ruleFrom = link->ruleFrom + i;
-                                u8* const addr      = link->addrs    + i*IPV6_ADDR_SIZE;
+                                const uint table     = link->table    + i;
+                                const uint mark      = link->mark     + i;
+                                const uint ruleMark  = link->ruleMark + i;
+                                const uint ruleFrom  = link->ruleFrom + i;
+                                const u8* const addr = link->addrs    + i*IPV6_ADDR_SIZE;
 
                                 char ip[IPV6_ADDR_STR_SIZE];
 
