@@ -150,8 +150,8 @@ static void ip6_prefix (u8* const restrict ip, const u8* const restrict prefix, 
 
 int main (int argsN, char** args) {
 
-    if (argsN % 7 != 1) {
-        printf("USAGE: ra ITFC GW_IP GW_MAC RULE_MARK RULE_FROM TABLE ADDRS_N ... \n");
+    if (argsN % 8 != 1) {
+        printf("USAGE: ra ITFC GW_IP GW_MAC TABLE MARK RULE_MARK RULE_FROM ADDRS_N ... \n");
         return 1;
     }
 
@@ -162,7 +162,7 @@ int main (int argsN, char** args) {
         return 1;
     }
 
-    const uint linksN = (argsN - 1) / 7;
+    const uint linksN = (argsN - 1) / 8;
 
     Link links[16];
 
@@ -174,14 +174,16 @@ int main (int argsN, char** args) {
         const char* const _gwIP     = args[1];
               char* const _gwMAC    = args[2];
         const char* const _table    = args[3];
-        const char* const _ruleMark = args[4];
-        const char* const _ruleFrom = args[5];
-        const char* const _addrsN   = args[6]; args += 7;
+        const char* const _mark     = args[4];
+        const char* const _ruleMark = args[5];
+        const char* const _ruleFrom = args[6];
+        const char* const _addrsN   = args[7]; args += 8;
 
-        const uint table = atoi(_table);
+        const uint table    = atoi(_table);
+        const uint mark     = atoi(_mark);
         const uint ruleMark = atoi(_ruleMark);
         const uint ruleFrom = atoi(_ruleFrom);
-        const uint addrsN = atoi(_addrsN);
+        const uint addrsN   = atoi(_addrsN);
 
         struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, _itfc, IFNAMSIZ - 1);
 
@@ -214,6 +216,12 @@ int main (int argsN, char** args) {
             return 1;
         }
 
+        if (mark < 1 ||
+            mark > 1000) {
+            printf("BAD MARK %s\n", _mark);
+            return 1;
+        }
+
         if (addrsN < 1 ||
             addrsN > 1000) {
             printf("BAD ADDRS N %s\n", _addrsN);
@@ -236,6 +244,7 @@ int main (int argsN, char** args) {
         link->itfc = _itfc;
         link->mtu = 0;
         link->table = table;
+        link->mark = mark;
         link->ruleMark = ruleMark;
         link->ruleFrom = ruleFrom;
         link->prefixLen = 0;
