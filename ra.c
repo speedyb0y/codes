@@ -11,8 +11,8 @@
 #include <sys/socket.h>
 #include <sys/stat.h>
 #include <sys/time.h>
-#include <sys/random.h>
 #include <sys/ioctl.h>
+#include <sys/random.h>
 #include <net/if.h>
 #include <fcntl.h>
 #include <arpa/inet.h>
@@ -37,6 +37,8 @@ typedef uint64_t u64;
 #define OPTION_PREFIX_INFORMATION  0x03U
 #define OPTION_MTU                 0x05U
 
+#define IPV6_ADDR_STR_SIZE 64
+
 #define IPV6_ADDR_SIZE 16
 #define MAC_SIZE 6
 #define MAC_STR_SIZE 17
@@ -50,25 +52,73 @@ static inline u64 rdtsc (void) {
     return ((u64)hi << 32) | lo;
 }
 
-#define IP(fmt, ...) ({ char cmd[512]; snprintf(cmd, sizeof(cmd), "ip " fmt, ##__VA_ARGS__); printf(" -> %s\n", cmd); system(cmd); })
+#define IP(fmt, ...) ({ char cmd[512]; snprintf(cmd, sizeof(cmd), "true ip " fmt, ##__VA_ARGS__); printf(" -> %s\n", cmd); system(cmd); })
 
 typedef struct Link Link;
 
 struct Link {
     const char* itfc;
     const char* gwIP;
-    u8 gwMAC[MAC_SIZE];
-    u16 table;
-    u32 mtu;
-    u16 addrsN;
+    u8 gwMAC[MAC_SIZE]; // 6
     u16 prefixLen;
+    u32 table;
+    u32 mtu;
+    u32 addrsN;
+    u32 mark;
+    u32 ruleMark;
+    u32 ruleFrom;
     u8 prefix[IPV6_ADDR_SIZE];
+    void* addrs;
 };
+
+static inline void ipv6_addr (char* const restrict prefixStr, const u8* const restrict prefix) {
+#if 0
+    snprintf(prefixStr, IPV6_ADDR_STR_SIZE, "%X:%X:%X:%X:%X:%X:%X:%X",
+        ntohs(((u16*)prefix)[0]),
+        ntohs(((u16*)prefix)[1]),
+        ntohs(((u16*)prefix)[2]),
+        ntohs(((u16*)prefix)[3]),
+        ntohs(((u16*)prefix)[4]),
+        ntohs(((u16*)prefix)[5]),
+        ntohs(((u16*)prefix)[6]),
+        ntohs(((u16*)prefix)[7])
+        );
+#else
+        char prefixStr_[512];
+
+        if (inet_ntop(AF_INET6, prefix, prefixStr_, sizeof(prefixStr_)) != prefixStr_)
+            prefixStr_[0] = '\x00';
+
+        snprintf(prefixStr, IPV6_ADDR_STR_SIZE, "%s", prefixStr_);
+#endif
+}
+
+static inline void ipv6_prefix (char* const restrict prefixStr, const uint prefixStrSize, const u8* const restrict prefix, const uint prefixLen) {
+#if 0
+    snprintf(prefixStr, prefixStrSize, "%X:%X:%X:%X:%X:%X:%X:%X/%u",
+        ntohs(((u16*)prefix)[0]),
+        ntohs(((u16*)prefix)[1]),
+        ntohs(((u16*)prefix)[2]),
+        ntohs(((u16*)prefix)[3]),
+        ntohs(((u16*)prefix)[4]),
+        ntohs(((u16*)prefix)[5]),
+        ntohs(((u16*)prefix)[6]),
+        ntohs(((u16*)prefix)[7]),
+        prefixLen);
+#else
+        char prefixStr_[512];
+
+        if (inet_ntop(AF_INET6, prefix, prefixStr_, sizeof(prefixStr_)) != prefixStr_)
+            prefixStr_[0] = '\x00';
+
+        snprintf(prefixStr, prefixStrSize, "%s/%u", prefixStr_, prefixLen);
+#endif
+}
 
 int main (int argsN, char** args) {
 
-    if (argsN % 5 != 1) {
-        printf("USAGE: ra ITFC TABLE GW_IP GW_MAC ADDRS_N ... \n");
+    if (argsN % 7 != 1) {
+        printf("USAGE: ra ITFC GW_IP GW_MAC RULE_MARK RULE_FROM TABLE ADDRS_N ... \n");
         return 1;
     }
 
@@ -79,7 +129,7 @@ int main (int argsN, char** args) {
         return 1;
     }
 
-    const uint linksN = (argsN - 1) / 5;
+    const uint linksN = (argsN - 1) / 7;
 
     Link links[16];
 
@@ -87,13 +137,17 @@ int main (int argsN, char** args) {
 
     for (uint i = 0; i != linksN; i++) {
 
-        const char* const _itfc   = args[0];
-        const char* const _table  = args[1];
-        const char* const _gwIP   = args[2];
-              char* const _gwMAC  = args[3];
-        const char* const _addrsN = args[4];
+        const char* const _itfc     = args[0];
+        const char* const _gwIP     = args[1];
+              char* const _gwMAC    = args[2];
+        const char* const _table    = args[3];
+        const char* const _ruleMark = args[4];
+        const char* const _ruleFrom = args[5];
+        const char* const _addrsN   = args[6]; args += 7;
 
         const uint table = atoi(_table);
+        const uint ruleMark = atoi(_ruleMark);
+        const uint ruleFrom = atoi(_ruleFrom);
         const uint addrsN = atoi(_addrsN);
 
         struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, _itfc, IFNAMSIZ - 1);
@@ -109,15 +163,27 @@ int main (int argsN, char** args) {
        //int             ifr_mtu;
        //struct ifmap    ifr_map;
 
-        if (table == 0 ||
+        if (table < 1 ||
             table > 32000) {
             printf("BAD TABLE %s\n", _table);
             return 1;
         }
 
-        if (addrsN == 0 ||
+        if (ruleMark < 1 ||
+            ruleMark > 32000) {
+            printf("BAD RULE MARK %s\n", _ruleMark);
+            return 1;
+        }
+
+        if (ruleFrom < 1 ||
+            ruleFrom > 32000) {
+            printf("BAD RULE FROM %s\n", _ruleFrom);
+            return 1;
+        }
+
+        if (addrsN < 1 ||
             addrsN > 1000) {
-            printf("BAD TABLE %s\n", _addrsN);
+            printf("BAD ADDRS N %s\n", _addrsN);
             return 1;
         }
 
@@ -132,21 +198,26 @@ int main (int argsN, char** args) {
         _gwMAC[11] = '\x00';
         _gwMAC[14] = '\x00';
 
-        links[i].itfc = _itfc;
-        links[i].table = table;
-        links[i].prefixLen = 0;
-        links[i].prefix[0] = 0;
-        links[i].mtu = 0;
-        links[i].addrsN = addrsN;
-        links[i].gwIP = _gwIP;
-        links[i].gwMAC[0] = strtoul(_gwMAC +  0, NULL, 16);
-        links[i].gwMAC[1] = strtoul(_gwMAC +  3, NULL, 16);
-        links[i].gwMAC[2] = strtoul(_gwMAC +  6, NULL, 16);
-        links[i].gwMAC[3] = strtoul(_gwMAC +  9, NULL, 16);
-        links[i].gwMAC[4] = strtoul(_gwMAC + 12, NULL, 16);
-        links[i].gwMAC[5] = strtoul(_gwMAC + 15, NULL, 16);
+        Link* const link = &links[i];
 
-        args += 5;
+        link->itfc = _itfc;
+        link->mtu = 0;
+        link->table = table;
+        link->ruleMark = ruleMark;
+        link->ruleFrom = ruleFrom;
+        link->prefixLen = 0;
+        link->prefix[0] = 0;
+        link->gwIP = _gwIP;
+        link->gwMAC[0] = strtoul(_gwMAC +  0, NULL, 16);
+        link->gwMAC[1] = strtoul(_gwMAC +  3, NULL, 16);
+        link->gwMAC[2] = strtoul(_gwMAC +  6, NULL, 16);
+        link->gwMAC[3] = strtoul(_gwMAC +  9, NULL, 16);
+        link->gwMAC[4] = strtoul(_gwMAC + 12, NULL, 16);
+        link->gwMAC[5] = strtoul(_gwMAC + 15, NULL, 16);
+        link->addrsN = addrsN;
+        link->addrs = malloc(sizeof(IPV6_ADDR_SIZE)*addrsN);
+
+        memset(link->addrs, 0, sizeof(IPV6_ADDR_SIZE)*addrsN);
     }
 
     u8 ipGenerated[IPV6_ADDR_SIZE]; getrandom(ipGenerated, sizeof(ipGenerated), 0);
@@ -288,23 +359,12 @@ int main (int argsN, char** args) {
                         if (memcmp(link->prefix, prefix, IPV6_ADDR_SIZE) || link->prefixLen != prefixLen) {
                             // É DESTE LINK, E ELE MUDOU
 
-                            printf("CHANGED LINK #%u ITFC %s NEW PREFIX %04X:%04X:%04X:%04X:%04X:%04X:%04X:%04X/%u\n", linkID, link->itfc,
-                                ntohs(((u16*)prefix)[0]),
-                                ntohs(((u16*)prefix)[1]),
-                                ntohs(((u16*)prefix)[2]),
-                                ntohs(((u16*)prefix)[3]),
-                                ntohs(((u16*)prefix)[4]),
-                                ntohs(((u16*)prefix)[5]),
-                                ntohs(((u16*)prefix)[6]),
-                                ntohs(((u16*)prefix)[7]),
-                                (uint)link->prefixLen);
+                            char prefixStr[64]; char linkPrefixStr[64];
 
-                            // PASSA A USAR ELE
-                            memcpy(link->prefix, prefix, IPV6_ADDR_SIZE); link->prefixLen = prefixLen;
+                            ipv6_prefix(prefixStr, sizeof(prefixStr), prefix, prefixLen);
+                            ipv6_prefix(linkPrefixStr, sizeof(linkPrefixStr), link->prefix, link->prefixLen);
 
-                            IP("-6 addr flush dev %s", link->itfc);
-
-                            uint table = link->table;
+                            printf("LINK #%u ITFC %s PREFIX CHANGED %s -> %s\n", linkID, link->itfc, linkPrefixStr, prefixStr);
 
                             ((u64*)ipGenerated)[0] +=  ((u64*)ipGenerated)[1] + time(NULL);
                             ((u64*)ipGenerated)[1] += ~((u64*)ipGenerated)[0] + rdtsc();
@@ -334,26 +394,34 @@ int main (int argsN, char** args) {
 
                                 char ip[64];
 
-                                snprintf(ip, sizeof(ip), "%X:%X:%X:%X:%X:%X:%X:%X",
-                                    ntohs(((u16*)ipGenerated)[0]),
-                                    ntohs(((u16*)ipGenerated)[1]),
-                                    ntohs(((u16*)ipGenerated)[2]),
-                                    ntohs(((u16*)ipGenerated)[3]),
-                                    ntohs(((u16*)ipGenerated)[4]),
-                                    ntohs(((u16*)ipGenerated)[5]),
-                                    ntohs(((u16*)ipGenerated)[6]),
-                                    ntohs(((u16*)ipGenerated)[7])
-                                    );
+                                //ipv6_addr(ip, ipGenerated);
+                                const uint table = link->table + i;
+                                const uint mark = link->mark + i;
+                                const uint ruleMark = link->ruleMark + i;
+                                const uint ruleFrom = link->ruleFrom + i;
 
-                                IP("-6 addr add dev %s %s", link->itfc, ip); //  TODO: FIXME: NO DAD
+                                u8* const addr = link->addrs + i*IPV6_ADDR_SIZE;
+
+                                IP("-6 rule flush priority %u", ruleMark);
+                                IP("-6 rule flush priority %u", ruleFrom);
                                 IP("-6 route flush table %u", table);
+                                IP("-6 addr del dev %s OLD_IP/128", link->itfc);
+
+                                memcpy(addr, ipGenerated, IPV6_ADDR_SIZE);
+
+                                ipv6_addr(ip, addr);
+
+                                IP("-6 addr add dev %s %s/128 nodad", link->itfc, ip);
                                 IP("-6 route add table %u src %s dev %s %s", table, ip, link->itfc, link->gwIP);
                                 IP("-6 route add table %u src %s dev %s default via %s", table, ip, link->itfc, link->gwIP);
-
-                                table++;
+                                IP("-6 rule add priority %u table %u fwmark %u", ruleMark, table, mark);
+                                IP("-6 rule add priority %u table %u from %s", ruleFrom, table, ip);
                             }
 
-                            system("ip -6 route flush cache");
+                            IP("-6 route flush cache");
+
+                            // PASSA A USAR ELE
+                            memcpy(link->prefix, prefix, IPV6_ADDR_SIZE); link->prefixLen = prefixLen;
                         }
                     }
 
