@@ -44,7 +44,7 @@ typedef uint64_t u64;
 #define MAC_SIZE 6
 #define MAC_STR_SIZE 17
 
-#define MSGS_N 64
+#define MSGS_N 512
 
 static inline u64 rdtsc (void) {
     uint lo;
@@ -260,25 +260,26 @@ int main (int argsN, char** args) {
 
     ip6_random_init();
 
+
+    struct mmsghdr msgs[MSGS_N];
+    struct iovec iovs[MSGS_N];
+    u8 buffs[MSGS_N][512];
+
+    for (uint i = 0; i != MSGS_N; i++) {
+        msgs[i].msg_hdr.msg_name = NULL;
+        msgs[i].msg_hdr.msg_namelen = 0;
+        msgs[i].msg_hdr.msg_iov = &iovs[i];
+        msgs[i].msg_hdr.msg_iovlen = 1;
+        msgs[i].msg_hdr.msg_control = NULL;
+        msgs[i].msg_hdr.msg_controllen = 0;
+        msgs[i].msg_hdr.msg_flags = 0;
+        iovs[i].iov_base = &buffs[i];
+        iovs[i].iov_len = sizeof(buffs[i]);
+    }
+
     loop {
 
-        struct mmsghdr msgs[MSGS_N];
-        struct iovec iovs[MSGS_N];
-        u8 buffs[MSGS_N][512];
-
-        for (uint i = 0; i != MSGS_N; i++) {
-            msgs[i].msg_hdr.msg_name = NULL;
-            msgs[i].msg_hdr.msg_namelen = 0;
-            msgs[i].msg_hdr.msg_iov = &iovs[i];
-            msgs[i].msg_hdr.msg_iovlen = 1;
-            msgs[i].msg_hdr.msg_control = NULL;
-            msgs[i].msg_hdr.msg_controllen = 0;
-            msgs[i].msg_hdr.msg_flags = 0;
-            iovs[i].iov_base = &buffs[i];
-            iovs[i].iov_len = sizeof(buffs[i]);
-        }
-
-        const int msgsN = recvmmsg(sock, msgs, MSGS_N, MSG_WAITFORONE, NULL);
+        int msgsN = recvmmsg(sock, msgs, MSGS_N, MSG_WAITFORONE, NULL);
 
         if (msgsN == -1) {
             if (errno != EINTR)
@@ -335,7 +336,6 @@ int main (int argsN, char** args) {
 
                     switch (optionCode) {
                         case OPTION_PREFIX_INFORMATION: // TODO: FIXME: VALIDAR optionSize
-                            // TYPE: PREFIX INFORMATION
                             prefixLen = *(u8*)optionValue;
                             prefixFlags = *(u8*)(optionValue + 1);
                             prefixValidLT = ntohl(*(u32*)(optionValue + 2));
@@ -463,6 +463,15 @@ int main (int argsN, char** args) {
                         printf("UNKNOWN RA\n");
                 }
             }
+        }
+
+        // TODO: FIXME: SÓ O QUE DE FATO FOI SOBRESCRITO
+        while (msgsN--) {
+            msgs[msgsN].msg_hdr.msg_iov = &iovs[msgsN];
+            msgs[msgsN].msg_hdr.msg_iovlen = 1;
+            msgs[msgsN].msg_hdr.msg_flags = 0;
+            iovs[msgsN].iov_base = &buffs[msgsN];
+            iovs[msgsN].iov_len = sizeof(buffs[msgsN]);
         }
     }
 }
