@@ -53,7 +53,16 @@ static inline u64 rdtsc (void) {
     return ((u64)hi << 32) | lo;
 }
 
-#define IP(fmt, ...) ({ char cmd[512]; snprintf(cmd, sizeof(cmd), "true ip " fmt, ##__VA_ARGS__); printf(" -> %s\n", cmd); system(cmd); })
+#define IP(fmt, ...) ({ \
+    char cmd[512]; \
+    snprintf(cmd, sizeof(cmd), "ip " fmt, ##__VA_ARGS__); \
+    printf(" -> %s\n", cmd); \
+    fflush(stdout); \
+    fflush(stderr); \
+    system(cmd); \
+    fflush(stdout); \
+    fflush(stderr); \
+    })
 
 typedef struct Link Link;
 
@@ -260,7 +269,6 @@ int main (int argsN, char** args) {
 
     ip6_random_init();
 
-
     struct mmsghdr msgs[MSGS_N];
     struct iovec iovs[MSGS_N];
     u8 buffs[MSGS_N][512];
@@ -341,11 +349,6 @@ int main (int argsN, char** args) {
                             prefixValidLT = ntohl(*(u32*)(optionValue + 2));
                             prefixPreferredLT = ntohl(*(u32*)(optionValue + 6));
                             prefix = optionValue + 14; // OBS.: tem também um u32 RESERVED
-                            if (prefixLen < 32 ||
-                                prefixLen > 90) {
-                                printf("INVALID PREFIX SIZE\n");
-                                ok = 0;
-                            }
                             break;
                         case OPTION_MTU:
                             //mtuReserved = *(u16*)optionValue;
@@ -361,6 +364,12 @@ int main (int argsN, char** args) {
 
                     option += optionSize;
                     msgSize -= optionSize;
+                }
+
+                if (prefixLen < 32 ||
+                    prefixLen > 90) {
+                    printf("INVALID PREFIX SIZE\n");
+                    ok = 0;
                 }
 
                 if (!mac) {
