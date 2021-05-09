@@ -367,15 +367,6 @@ int main (int argsN, char** args) {
                     printf("MISSING PREFIX\n");
                 } else {
 
-                    if (1) {
-                        char prefixStr[IPV6_PREFIX_STR_SIZE];
-                        prefix6_to_str(prefix, prefixLen, prefixStr);
-                        printf("GW MAC %02X:%02X:%02X:%02X:%02X:%02X MTU %u PREFIX %s FLAGS 0x%02X VALIDLT %u PREFERREDLT %u\n",
-                            mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mtu, prefixStr,
-                            prefixFlags, prefixValidLT, prefixPreferredLT
-                            );
-                    }
-
                     uint linkID = 0;
 
                     while (linkID != linksN && memcmp(links[linkID].gwMAC, mac, MAC_SIZE))
@@ -390,6 +381,15 @@ int main (int argsN, char** args) {
                             // É DESTE LINK, E ELE MUDOU
                             char prefixStr    [IPV6_PREFIX_STR_SIZE]; prefix6_to_str(      prefix,       prefixLen,     prefixStr);
                             char linkPrefixStr[IPV6_PREFIX_STR_SIZE]; prefix6_to_str(link->prefix, link->prefixLen, linkPrefixStr);
+
+                            if (1) {
+                                char prefixStr[IPV6_PREFIX_STR_SIZE];
+                                prefix6_to_str(prefix, prefixLen, prefixStr);
+                                printf("GW MAC %02X:%02X:%02X:%02X:%02X:%02X MTU %u PREFIX %s FLAGS 0x%02X VALIDLT %u PREFERREDLT %u\n",
+                                    mac[0], mac[1], mac[2], mac[3], mac[4], mac[5], mtu, prefixStr,
+                                    prefixFlags, prefixValidLT, prefixPreferredLT
+                                    );
+                            }
 
                             printf("LINK #%u ITFC %s PREFIX CHANGED %s -> %s\n", linkID, link->itfc, linkPrefixStr, prefixStr);
 
