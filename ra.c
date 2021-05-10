@@ -379,9 +379,8 @@ int main (int argsN, char** args) {
                                 prefixFlags, prefixValidLT, prefixPreferredLT, linkID, link->itfc, linkPrefixStr
                                 );
 
-                            IP("-6 rule del priority %u table %u from %s", ruleFrom, link->table, linkPrefixStr);
-                            IP("-6 rule del priority %u table %u to %s", ruleFrom, link->table, linkPrefixStr); // TODO: FIXME:  RULE TO
-                            // JÁ SELECIONOU O SOURCE, ENTÃO BASTA JOGAR NA PRIMEIRA TABELA E ASSIM TER UM RULE SÓ
+                            IP("-6 rule del priority %u table %u", ruleFrom, link->table);
+                            IP("-6 rule del priority %u table %u", ruleFrom, link->table); // TODO: FIXME:  RULE TO
 
                             for (uint i = 0; i != link->addrsN; i++) {
 
@@ -420,6 +419,7 @@ int main (int argsN, char** args) {
                             // PASSA A USAR ELE
                             memcpy(link->prefix, prefix, IPV6_ADDR_SIZE); link->prefixLen = prefixLen;
 
+                            // JÁ SELECIONOU O SOURCE, ENTÃO BASTA JOGAR NA PRIMEIRA TABELA E ASSIM TER UM RULE SÓ
                             IP("-6 rule add priority %u table %u from %s", ruleFrom, link->table, prefixStr);
                             IP("-6 rule add priority %u table %u to %s", ruleFrom, link->table, prefixStr); // TODO: FIXME:  RULE TO
 
