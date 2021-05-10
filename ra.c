@@ -54,9 +54,9 @@ static inline u64 rdtsc (void) {
     return ((u64)hi << 32) | lo;
 }
 
-#define IP(fmt, ...) ({ \
+#define IP6(fmt, ...) ({ \
     char cmd[512]; \
-    snprintf(cmd, sizeof(cmd), "ip " fmt, ##__VA_ARGS__); \
+    snprintf(cmd, sizeof(cmd), "ip -6 " fmt, ##__VA_ARGS__); \
     printf(" -> %s\n", cmd); \
     fflush(stdout); \
     fflush(stderr); \
@@ -427,13 +427,13 @@ int main (int argsN, char** args) {
                                 );
 
                             if (link->prefixLen)
-                                IP("-6 rule del priority %u table %u", ruleFrom, link->table);
+                                IP6("rule del priority %u table %u", ruleFrom, link->table);
 
                             for (uint i = 0; i != link->addrsN; i++) {
 
                                 // REMOVE A ROTA ATUAL
                                 // SEMPRE TEM UM LÁ - NO COMEÇO É UM BLACKHOLE
-                                IP("-6 route del table %u default", link->table + i);
+                                IP6("route del table %u default", link->table + i);
 
                                 u8* const addr = link->addrs + i*IPV6_ADDR_SIZE;
 
@@ -441,7 +441,7 @@ int main (int argsN, char** args) {
                                 // SÓ SE REALMENTE HAVIA COLOCADO UM ANTES
                                 if (link->prefixLen) {
                                     char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(addr, ip);
-                                    IP("-6 addr del dev %s %s/128", link->itfc, ip);
+                                    IP6("addr del dev %s %s/128", link->itfc, ip);
                                 }
 
                                 // GERA UM ENDEREÇO NOVO
@@ -450,25 +450,25 @@ int main (int argsN, char** args) {
 
                                 // PÕE O ENDEREÕ NOVO
                                 char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(addr, ip);
-                                IP("-6 addr add nodad dev %s %s/128", link->itfc, ip);
+                                IP6("addr add nodad dev %s %s/128", link->itfc, ip);
                             }
 
-                            IP("-6 route flush cache");
+                            IP6("route flush cache");
 
                             sleep(3);
 
                             for (uint i = 0; i != link->addrsN; i++) {
                                 char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(link->addrs + i*IPV6_ADDR_SIZE, ip);
-                                IP("-6 route add table %u default dev %s via %s src %s", link->table + i, link->itfcOut, link->gwIP, ip);
+                                IP6("route add table %u default dev %s via %s src %s", link->table + i, link->itfcOut, link->gwIP, ip);
                             }
 
-                            IP("-6 route flush cache");
+                            IP6("route flush cache");
 
                             // PASSA A USAR ELE
                             memcpy(link->prefix, prefix, IPV6_ADDR_SIZE); link->prefixLen = prefixLen;
 
                             // JÁ SELECIONOU O SOURCE, ENTÃO BASTA JOGAR NA PRIMEIRA TABELA E ASSIM TER UM RULE SÓ
-                            IP("-6 rule add priority %u table %u from %s", ruleFrom, link->table, prefixStr);
+                            IP6("rule add priority %u table %u from %s", ruleFrom, link->table, prefixStr);
 
                             printf("   -- DONE\n\n");
                         }
@@ -490,16 +490,16 @@ int main (int argsN, char** args) {
         printf("CLEANING LINK #%u ITFC %s\n", linkID, link->itfc);
 
         if (link->prefixLen) {
-            IP("-6 rule del priority %u table %u", ruleFrom, link->table);
+            IP6("rule del priority %u table %u", ruleFrom, link->table);
             for (uint i = 0; i != link->addrsN; i++) {
                 char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(link->addrs + i*IPV6_ADDR_SIZE, ip);
-                IP("-6 route replace table %u blackhole default", link->table + i);
-                IP("-6 addr del dev %s %s/128", link->itfc, ip);
+                IP6("route replace table %u blackhole default", link->table + i);
+                IP6("addr del dev %s %s/128", link->itfc, ip);
             }
         }
     }
 
-    IP("-6 route flush cache");
+    IP6("route flush cache");
 
     return 0;
 }
