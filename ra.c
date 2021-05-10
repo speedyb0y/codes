@@ -386,18 +386,23 @@ int main (int argsN, char** args) {
 
                                 u8* const addr = link->addrs + i*IPV6_ADDR_SIZE;
 
-                                if (link->prefixLen) { // SÓ SE REALMENTE HAVIA COLOCADO UM ANTES
+                                // REMOVE A ROTA ATUAL
+                                // SEMPRE TEM UM LÁ - NO COMEÇO É UM BLACKHOLE
+                                IP("-6 route del table %u default", link->table + i);
+
+                                // REMOVE O ENDEREÇO ATUAL
+                                // SÓ SE REALMENTE HAVIA COLOCADO UM ANTES
+                                if (link->prefixLen) {
                                     char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(addr, ip);
-                                    IP("-6 route del table %u default", link->table + i);
                                     IP("-6 addr del dev %s %s/128", link->itfc, ip);
                                 }
 
-                                char ip[IPV6_ADDR_STR_SIZE];
-
+                                // GERA UM ENDEREÇO NOVO
                                 ip6_random_gen(addr);
                                 ip6_prefix(addr, prefix, prefixLen);
-                                ip6_to_str(addr, ip);
 
+                                // PÕE O ENDEREÕ NOVO
+                                char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(addr, ip);
                                 IP("-6 addr add nodad dev %s %s/128", link->itfc, ip);
                             }
 
@@ -406,8 +411,7 @@ int main (int argsN, char** args) {
                             sleep(3);
 
                             for (uint i = 0; i != link->addrsN; i++) {
-                                char ip[IPV6_ADDR_STR_SIZE];
-                                ip6_to_str(link->addrs + i*IPV6_ADDR_SIZE, ip);
+                                char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(link->addrs + i*IPV6_ADDR_SIZE, ip);
                                 IP("-6 route add table %u src %s dev %s default via %s", link->table + i, ip, link->itfc, link->gwIP);
                             }
 
