@@ -384,12 +384,11 @@ int main (int argsN, char** args) {
 
                             for (uint i = 0; i != link->addrsN; i++) {
 
-                                const uint table    = link->table    + i;
-                                u8* const addr      = link->addrs    + i*IPV6_ADDR_SIZE;
+                                u8* const addr = link->addrs + i*IPV6_ADDR_SIZE;
 
                                 if (link->prefixLen) { // SÓ SE REALMENTE HAVIA COLOCADO UM ANTES
                                     char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(addr, ip);
-                                    IP("-6 route del table %u default", table);
+                                    IP("-6 route del table %u default", link->table + i);
                                     IP("-6 addr del dev %s %s/128", link->itfc, ip);
                                 }
 
@@ -407,11 +406,9 @@ int main (int argsN, char** args) {
                             sleep(3);
 
                             for (uint i = 0; i != link->addrsN; i++) {
-                                const uint table     = link->table    + i;
-                                const u8* const addr = link->addrs    + i*IPV6_ADDR_SIZE;
                                 char ip[IPV6_ADDR_STR_SIZE];
-                                ip6_to_str(addr, ip);
-                                IP("-6 route add table %u src %s dev %s default via %s", table, ip, link->itfc, link->gwIP);
+                                ip6_to_str(link->addrs + i*IPV6_ADDR_SIZE, ip);
+                                IP("-6 route add table %u src %s dev %s default via %s", link->table + i, ip, link->itfc, link->gwIP);
                             }
 
                             IP("-6 route flush cache");
