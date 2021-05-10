@@ -73,10 +73,8 @@ struct Link {
     u16 prefixLen;
     u32 table;
     u32 mtu;
-    u32 addrsN;
     u32 mark;
-    u32 ruleMark;
-    u32 ruleFrom;
+    u32 addrsN;
     u8 prefix[IPV6_ADDR_SIZE];
     u8* addrs;
 };
@@ -155,8 +153,18 @@ static void ip6_prefix (u8* restrict ip, const u8* restrict prefix, uint prefixL
 
 int main (int argsN, char** args) {
 
-    if (argsN % 8 != 1) {
-        printf("USAGE: ra ITFC GW_IP GW_MAC TABLE MARK RULE_MARK RULE_FROM ADDRS_N ... \n");
+    if (argsN % 6 != 2) {
+        printf("USAGE: ra RULE_FROM ITFC GW_IP GW_MAC TABLE MARK ADDRS_N ... \n");
+        return 1;
+    }
+
+    const char* const _ruleFrom = args++[1];
+
+    const uint ruleFrom = atoi(_ruleFrom);
+
+    if (ruleFrom < 1 ||
+        ruleFrom > 32000) {
+        printf("BAD RULE FROM %s\n", _ruleFrom);
         return 1;
     }
 
@@ -167,7 +175,7 @@ int main (int argsN, char** args) {
         return 1;
     }
 
-    const uint linksN = (argsN - 1) / 8;
+    const uint linksN = (argsN - 1) / 6;
 
     Link links[16];
 
@@ -180,14 +188,10 @@ int main (int argsN, char** args) {
               char* const _gwMAC    = args[2];
         const char* const _table    = args[3];
         const char* const _mark     = args[4];
-        const char* const _ruleMark = args[5];
-        const char* const _ruleFrom = args[6];
-        const char* const _addrsN   = args[7]; args += 8;
+        const char* const _addrsN   = args[5]; args += 6;
 
         const uint table    = atoi(_table);
         const uint mark     = atoi(_mark);
-        const uint ruleMark = atoi(_ruleMark);
-        const uint ruleFrom = atoi(_ruleFrom);
         const uint addrsN   = atoi(_addrsN);
 
         struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, _itfc, IFNAMSIZ - 1);
@@ -206,18 +210,6 @@ int main (int argsN, char** args) {
         if (table < 1 ||
             table > 32000) {
             printf("BAD TABLE %s\n", _table);
-            return 1;
-        }
-
-        if (ruleMark < 1 ||
-            ruleMark > 32000) {
-            printf("BAD RULE MARK %s\n", _ruleMark);
-            return 1;
-        }
-
-        if (ruleFrom < 1 ||
-            ruleFrom > 32000) {
-            printf("BAD RULE FROM %s\n", _ruleFrom);
             return 1;
         }
 
@@ -250,8 +242,6 @@ int main (int argsN, char** args) {
         link->mtu = 0;
         link->table = table;
         link->mark = mark;
-        link->ruleMark = ruleMark;
-        link->ruleFrom = ruleFrom;
         link->prefixLen = 0;
         link->prefix[0] = 0;
         link->gwIP = _gwIP;
@@ -389,25 +379,18 @@ int main (int argsN, char** args) {
                                 prefixFlags, prefixValidLT, prefixPreferredLT, linkID, link->itfc, linkPrefixStr
                                 );
 
-                            // RULE: RULE6_DEFAULT_OI_PUB_PREFIX
-                            IP("-6 rule add priority %u table %u to %s", link->ruleFrom, link->table, prefixStr);
+                            IP("-6 rule del priority %u table %u from %s", ruleFrom, link->table, linkPrefixStr);
+                            IP("-6 rule del priority %u table %u to %s", ruleFrom, link->table, linkPrefixStr); // TODO: FIXME:  RULE TO
+                            // JÁ SELECIONOU O SOURCE, ENTÃO BASTA JOGAR NA PRIMEIRA TABELA E ASSIM TER UM RULE SÓ
 
                             for (uint i = 0; i != link->addrsN; i++) {
 
                                 const uint table    = link->table    + i;
-                                const uint ruleMark = link->ruleMark + i;
-                                const uint ruleFrom = link->ruleFrom + i;
                                 u8* const addr      = link->addrs    + i*IPV6_ADDR_SIZE;
 
                                 if (link->prefixLen) { // SÓ SE REALMENTE HAVIA COLOCADO UM ANTES
-
-                                    char ip[IPV6_ADDR_STR_SIZE];
-
-                                    ip6_to_str(addr, ip);
-
-                                    IP("-6 rule flush priority %u", ruleMark);
-                                    IP("-6 rule flush priority %u", ruleFrom);
-                                    IP("-6 route flush table %u", table);
+                                    char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(addr, ip);
+                                    IP("-6 route del table %u default", table);
                                     IP("-6 addr del dev %s %s/128", link->itfc, ip);
                                 }
 
@@ -425,27 +408,20 @@ int main (int argsN, char** args) {
                             sleep(3);
 
                             for (uint i = 0; i != link->addrsN; i++) {
-
                                 const uint table     = link->table    + i;
-                                const uint mark      = link->mark     + i;
-                                const uint ruleMark  = link->ruleMark + i;
-                                const uint ruleFrom  = link->ruleFrom + i;
                                 const u8* const addr = link->addrs    + i*IPV6_ADDR_SIZE;
-
                                 char ip[IPV6_ADDR_STR_SIZE];
-
                                 ip6_to_str(addr, ip);
-
-                                IP("-6 route add table %u src %s dev %s %s", table, ip, link->itfc, link->gwIP);
                                 IP("-6 route add table %u src %s dev %s default via %s", table, ip, link->itfc, link->gwIP);
-                                IP("-6 rule add priority %u table %u fwmark %u", ruleMark, table, mark);
-                                IP("-6 rule add priority %u table %u from %s", ruleFrom, table, ip);
                             }
 
                             IP("-6 route flush cache");
 
                             // PASSA A USAR ELE
                             memcpy(link->prefix, prefix, IPV6_ADDR_SIZE); link->prefixLen = prefixLen;
+
+                            IP("-6 rule add priority %u table %u from %s", ruleFrom, link->table, prefixStr);
+                            IP("-6 rule add priority %u table %u to %s", ruleFrom, link->table, prefixStr); // TODO: FIXME:  RULE TO
 
                             printf("   -- DONE\n\n");
                         }
@@ -458,10 +434,5 @@ int main (int argsN, char** args) {
                 }
             }
         }
-
-        //while (msgsN--) {
-            //iovs[msgsN].iov_base = &buffs[msgsN];
-            //iovs[msgsN].iov_len = sizeof(buffs[msgsN]);
-        //}
     }
 }
