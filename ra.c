@@ -384,11 +384,11 @@ int main (int argsN, char** args) {
 
                             for (uint i = 0; i != link->addrsN; i++) {
 
-                                u8* const addr = link->addrs + i*IPV6_ADDR_SIZE;
-
                                 // REMOVE A ROTA ATUAL
                                 // SEMPRE TEM UM LÁ - NO COMEÇO É UM BLACKHOLE
                                 IP("-6 route del table %u default", link->table + i);
+
+                                u8* const addr = link->addrs + i*IPV6_ADDR_SIZE;
 
                                 // REMOVE O ENDEREÇO ATUAL
                                 // SÓ SE REALMENTE HAVIA COLOCADO UM ANTES
@@ -412,7 +412,7 @@ int main (int argsN, char** args) {
 
                             for (uint i = 0; i != link->addrsN; i++) {
                                 char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(link->addrs + i*IPV6_ADDR_SIZE, ip);
-                                IP("-6 route add table %u src %s dev %s default via %s", link->table + i, ip, link->itfc, link->gwIP);
+                                IP("-6 route add table %u default dev %s via %s src %s", link->table + i, link->itfc, link->gwIP, ip);
                             }
 
                             IP("-6 route flush cache");
