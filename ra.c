@@ -19,6 +19,7 @@
 #include <errno.h>
 #include <stdio.h>
 #include <unistd.h>
+#include <signal.h>
 #include <time.h>
 
 #define loop while(1)
@@ -68,7 +69,9 @@ typedef struct Link Link;
 
 struct Link {
     const char* itfc;
+    const char* itfcOut;
     const char* gwIP;
+    const char* gwOutIP;
     u8 gwMAC[MAC_SIZE]; // 6
     u16 prefixLen;
     u32 table;
@@ -151,20 +154,61 @@ static void ip6_prefix (u8* restrict ip, const u8* restrict prefix, uint prefixL
     }
 }
 
+static volatile sig_atomic_t sigTERM;
+
+static void signal_handler (int sig) {
+
+    switch (sig) {
+        case SIGINT:
+        case SIGTERM:
+            sigTERM = 1;
+    }
+}
+
 int main (int argsN, char** args) {
 
-    if (argsN % 6 != 2) {
-        printf("USAGE: ra RULE_FROM ITFC GW_IP GW_MAC TABLE MARK ADDRS_N ... \n");
+    // SIGNALS
+    sigTERM = 0;
+
+    // IGNORE ALL
+    struct sigaction action = { 0 };
+
+    action.sa_restorer = NULL;
+    action.sa_flags = 0;
+    action.sa_handler = SIG_IGN;
+
+    for (int sig = 0; sig != NSIG; sig++)
+        sigaction(sig, &action, NULL);
+
+    // HANDLE ONLY THESE
+    action.sa_handler = signal_handler;
+
+    sigaction(SIGINT,  &action, NULL);
+    sigaction(SIGTERM, &action, NULL);
+
+    args++;
+    argsN--;
+
+    if (argsN % 8 != 2) {
+        printf("USAGE: ra RULE_FROM RULE_TO ITFC GW_MAC GW_IP TABLE MARK ADDRS_N ITFC_OUT GW_OUT ... \n");
         return 1;
     }
 
-    const char* const _ruleFrom = args++[1];
+    const char* const _ruleFrom = *args++; argsN--;
+    const char* const _ruleTo   = *args++; argsN--;
 
     const uint ruleFrom = atoi(_ruleFrom);
+    const uint ruleTo   = atoi(_ruleTo);
 
     if (ruleFrom < 1 ||
         ruleFrom > 32000) {
         printf("BAD RULE FROM %s\n", _ruleFrom);
+        return 1;
+    }
+
+    if (ruleTo < 1 ||
+        ruleTo > 32000) {
+        printf("BAD RULE TO %s\n", _ruleTo);
         return 1;
     }
 
@@ -175,30 +219,39 @@ int main (int argsN, char** args) {
         return 1;
     }
 
-    const uint linksN = (argsN - 1) / 6;
+    const uint linksN = argsN / 8;
 
     Link links[16];
-
-    args++;
 
     for (uint i = 0; i != linksN; i++) {
 
         const char* const _itfc     = args[0];
-        const char* const _gwIP     = args[1];
-              char* const _gwMAC    = args[2];
+              char* const _gwMAC    = args[1];
+        const char* const _gwIP     = args[2];
         const char* const _table    = args[3];
         const char* const _mark     = args[4];
-        const char* const _addrsN   = args[5]; args += 6;
+        const char* const _addrsN   = args[5];
+        const char* const _itfcOut  = args[6];
+        const char* const _gwOutIP  = args[7]; args += 8;
 
         const uint table    = atoi(_table);
         const uint mark     = atoi(_mark);
         const uint addrsN   = atoi(_addrsN);
 
-        struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, _itfc, IFNAMSIZ - 1);
+        { struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, _itfc, IFNAMSIZ - 1);
 
-        if (ioctl(sock, SIOCGIFINDEX, &ifr) == -1) {
-            printf("BAD INTERFACE %s\n", _itfc);
-            return 1;
+            if (ioctl(sock, SIOCGIFINDEX, &ifr) == -1) {
+                printf("BAD INTERFACE %s\n", _itfc);
+                return 1;
+            }
+        }
+
+        { struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, _itfcOut, IFNAMSIZ - 1);
+
+            if (ioctl(sock, SIOCGIFINDEX, &ifr) == -1) {
+                printf("BAD INTERFACE OUT %s\n", _itfcOut);
+                return 1;
+            }
         }
 
        //short           ifr_flags;
@@ -238,21 +291,23 @@ int main (int argsN, char** args) {
 
         Link* const link = &links[i];
 
-        link->itfc = _itfc;
-        link->mtu = 0;
-        link->table = table;
-        link->mark = mark;
+        link->itfc      = _itfc;
+        link->itfcOut   = _itfcOut;
+        link->mtu       = 0;
+        link->table     = table;
+        link->mark      = mark;
         link->prefixLen = 0;
         link->prefix[0] = 0;
-        link->gwIP = _gwIP;
-        link->gwMAC[0] = strtoul(_gwMAC +  0, NULL, 16);
-        link->gwMAC[1] = strtoul(_gwMAC +  3, NULL, 16);
-        link->gwMAC[2] = strtoul(_gwMAC +  6, NULL, 16);
-        link->gwMAC[3] = strtoul(_gwMAC +  9, NULL, 16);
-        link->gwMAC[4] = strtoul(_gwMAC + 12, NULL, 16);
-        link->gwMAC[5] = strtoul(_gwMAC + 15, NULL, 16);
-        link->addrsN = addrsN;
-        link->addrs = malloc(addrsN * IPV6_ADDR_SIZE);
+        link->gwOutIP   = _gwOutIP;
+        link->gwIP      = _gwIP;
+        link->gwMAC[0]  = strtoul(_gwMAC +  0, NULL, 16);
+        link->gwMAC[1]  = strtoul(_gwMAC +  3, NULL, 16);
+        link->gwMAC[2]  = strtoul(_gwMAC +  6, NULL, 16);
+        link->gwMAC[3]  = strtoul(_gwMAC +  9, NULL, 16);
+        link->gwMAC[4]  = strtoul(_gwMAC + 12, NULL, 16);
+        link->gwMAC[5]  = strtoul(_gwMAC + 15, NULL, 16);
+        link->addrsN    = addrsN;
+        link->addrs     = malloc(addrsN * IPV6_ADDR_SIZE);
 
         memset(link->addrs, 0, addrsN * IPV6_ADDR_SIZE);
     }
@@ -275,7 +330,7 @@ int main (int argsN, char** args) {
         iovs[i].iov_len = sizeof(buffs[i]);
     }
 
-    loop {
+    while (!sigTERM) {
 
         const int msgsN = recvmmsg(sock, msgs, MSGS_N, MSG_WAITFORONE, NULL);
 
@@ -380,7 +435,7 @@ int main (int argsN, char** args) {
                                 );
 
                             IP("-6 rule del priority %u table %u", ruleFrom, link->table);
-                            IP("-6 rule del priority %u table %u", ruleFrom, link->table); // TODO: FIXME:  RULE TO
+                            IP("-6 rule del priority %u table %u", ruleTo, link->table);
 
                             for (uint i = 0; i != link->addrsN; i++) {
 
@@ -412,7 +467,7 @@ int main (int argsN, char** args) {
 
                             for (uint i = 0; i != link->addrsN; i++) {
                                 char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(link->addrs + i*IPV6_ADDR_SIZE, ip);
-                                IP("-6 route add table %u default dev %s via %s src %s", link->table + i, link->itfc, link->gwIP, ip);
+                                IP("-6 route add table %u default dev %s via %s src %s", link->table + i, link->itfcOut, link->gwIP, ip);
                             }
 
                             IP("-6 route flush cache");
@@ -422,7 +477,7 @@ int main (int argsN, char** args) {
 
                             // JÁ SELECIONOU O SOURCE, ENTÃO BASTA JOGAR NA PRIMEIRA TABELA E ASSIM TER UM RULE SÓ
                             IP("-6 rule add priority %u table %u from %s", ruleFrom, link->table, prefixStr);
-                            IP("-6 rule add priority %u table %u to %s", ruleFrom, link->table, prefixStr); // TODO: FIXME:  RULE TO
+                            IP("-6 rule add priority %u table %u to %s", ruleTo, link->table, prefixStr);
 
                             printf("   -- DONE\n\n");
                         }
@@ -436,4 +491,25 @@ int main (int argsN, char** args) {
             }
         }
     }
+
+    for (uint linkID = 0; linkID != linksN; linkID++) {
+
+        Link* const link = &links[linkID];
+
+        printf("CLEANING LINK #%u ITFC %s\n", linkID, link->itfc);
+
+        if (link->prefixLen) {
+            IP("-6 rule del priority %u table %u", ruleFrom, link->table);
+            IP("-6 rule del priority %u table %u", ruleTo, link->table);
+            for (uint i = 0; i != link->addrsN; i++) {
+                char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(link->addrs + i*IPV6_ADDR_SIZE, ip);
+                IP("-6 route replace table %u blackhole default", link->table + i);
+                IP("-6 addr del dev %s %s/128", link->itfc, ip);
+            }
+        }
+    }
+
+    IP("-6 route flush cache");
+
+    return 0;
 }
