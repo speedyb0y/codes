@@ -189,26 +189,18 @@ int main (int argsN, char** args) {
     args++;
     argsN--;
 
-    if (argsN % 8 != 2) {
-        printf("USAGE: ra RULE_FROM RULE_TO ITFC GW_MAC GW_IP TABLE MARK ADDRS_N ITFC_OUT GW_OUT ... \n");
+    if (argsN % 8 != 1) {
+        printf("USAGE: ra RULE_FROM ITFC GW_MAC GW_IP TABLE MARK ADDRS_N ITFC_OUT GW_OUT ... \n");
         return 1;
     }
 
     const char* const _ruleFrom = *args++; argsN--;
-    const char* const _ruleTo   = *args++; argsN--;
 
     const uint ruleFrom = atoi(_ruleFrom);
-    const uint ruleTo   = atoi(_ruleTo);
 
     if (ruleFrom < 1 ||
         ruleFrom > 32000) {
         printf("BAD RULE FROM %s\n", _ruleFrom);
-        return 1;
-    }
-
-    if (ruleTo < 1 ||
-        ruleTo > 32000) {
-        printf("BAD RULE TO %s\n", _ruleTo);
         return 1;
     }
 
@@ -434,8 +426,10 @@ int main (int argsN, char** args) {
                                 prefixFlags, prefixValidLT, prefixPreferredLT, linkID, link->itfc, linkPrefixStr
                                 );
 
+                            IP("-6 route del dev %s local %s", link->itfc, linkPrefixStr);
+                            IP("-6 route add dev %s local %s", link->itfc, prefixStr);
+
                             IP("-6 rule del priority %u table %u", ruleFrom, link->table);
-                            IP("-6 rule del priority %u table %u", ruleTo, link->table);
 
                             for (uint i = 0; i != link->addrsN; i++) {
 
@@ -477,7 +471,6 @@ int main (int argsN, char** args) {
 
                             // JÁ SELECIONOU O SOURCE, ENTÃO BASTA JOGAR NA PRIMEIRA TABELA E ASSIM TER UM RULE SÓ
                             IP("-6 rule add priority %u table %u from %s", ruleFrom, link->table, prefixStr);
-                            IP("-6 rule add priority %u table %u to %s", ruleTo, link->table, prefixStr);
 
                             printf("   -- DONE\n\n");
                         }
@@ -499,8 +492,9 @@ int main (int argsN, char** args) {
         printf("CLEANING LINK #%u ITFC %s\n", linkID, link->itfc);
 
         if (link->prefixLen) {
+            char linkPrefixStr[IPV6_PREFIX_STR_SIZE]; prefix6_to_str(link->prefix, link->prefixLen, linkPrefixStr);
             IP("-6 rule del priority %u table %u", ruleFrom, link->table);
-            IP("-6 rule del priority %u table %u", ruleTo, link->table);
+            IP("-6 route del dev %s table %s", link->itfc, linkPrefixStr);
             for (uint i = 0; i != link->addrsN; i++) {
                 char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(link->addrs + i*IPV6_ADDR_SIZE, ip);
                 IP("-6 route replace table %u blackhole default", link->table + i);
