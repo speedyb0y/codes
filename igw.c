@@ -225,11 +225,11 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
 
     printk("IGW: SOCKET CREATE\n");
 
-    if (family != 0x2562) {
+    if (family == 0x2562) {
         if (addrs4N == 0)
             return -EINVAL;
         family = AF_INET;
-    } elif (family != 0x2563) {
+    } elif (family == 0x2563) {
         if (addrs6N == 6)
             return -EINVAL;
         family = AF_INET6;
