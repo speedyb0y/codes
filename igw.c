@@ -314,7 +314,7 @@ static int igw_itfcs_notify (notifier_block *nb, unsigned long action, void *dat
 
     printk("IGW: DEVICE %s INDEX %d ACTION %s\n", dev->name, dev->ifindex, netdev_cmd_to_name(action));
 
-    if (!strcpy(dev->name, "lo"))
+    if (!strcmp(dev->name, "lo"))
         lo = dev->ifindex;
     elif (action == NETDEV_UP) {
         addr4 = rtnl_dereference(dev->ip_ptr->ifa_list);
