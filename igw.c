@@ -19,22 +19,6 @@ se o prefixo mudar
 
 if again
     de tempos em tempos adiciona novos endereços
-
-itfcAddrs[4096]; //
-
-oMYCODE Pode especificar se é para download, seeestavel, se é direto, etc
-transforma o socket()
-    em:
-    socket(AF_INET, MYCODE, COUNTER)
-    if (== MYCODE) {
-        socket(AF_INET, SOCK_STREAM, 0);
-        if (sock > 0) {
-            setsockopt(SO_BINDTOIFINDEX, )
-            seprefixlen naofor0, gera um aleatório
-            bind();
-        }
-       } else
-        socket()
 */
 
 #include <linux/init.h>
@@ -232,7 +216,6 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
     } else
         return sock_create_REAL(family, type, protocol, res);
 
-    //| SOCK_NONBLOCK | SOCK_CLOEXEC
     if ((ret = sock_create_REAL(family, SOCK_STREAM, 0, res)) >= 0) {
         struct sock* sk = (*res)->sk;
         igw_acquire();
@@ -255,7 +238,6 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
         } else {
             Addr6* addr = &addrs6[protocol % addrs6N];
             struct sockaddr_in6 sockAddr = { .sin6_family = AF_INET6, .sin6_port = 0, .sin6_flowinfo = 0, .sin6_scope_id = 0 };
-
             // GERA UM ALEATÓRIO
             ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[0] = rdtsc();
             ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[1] = rdtsc() + protocol; // (+ jiffies) << 32
