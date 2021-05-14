@@ -3,10 +3,6 @@
         remove todos os endereços ipv4 com == itfc
         remove todos os endereços ipv6 com == itfc
 
-    endereço removido
-        -> remove ele
-
-
     endereço adicionado
         -> adiciona ele
 
@@ -174,6 +170,8 @@ struct IP6Addr {
 #define IPV4_ADDRS_N 2048
 #define IPV6_ADDRS_N 256
 
+#define ITFC_INDEX_INVALID 0xFFFFF
+
 static uint lo;
 
 static uint ipv4AddrsN;
@@ -201,7 +199,7 @@ static inline void igw_release (void) {
 // TODO: NUNCA ADICIONAR REPETIDOS, SEMPRE REMOVER TODOS
 static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
-    if (ipv6AddrsN != IPV6_ADDRS_N && addr->idev->dev->ifindex != lo && !(addr->addr.in6_u.u6_addr8[0] == 0xFE && addr->addr.in6_u.u6_addr8[1] == 0x80)) {
+    if (ipv6AddrsN != IPV6_ADDRS_N && !(addr->addr.in6_u.u6_addr8[0] == 0xFE && addr->addr.in6_u.u6_addr8[1] == 0x80)) {
 
         IP6Addr* const addr6 = &ipv6Addrs[ipv6AddrsN++];
 
@@ -218,7 +216,7 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
 static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
-    if (ipv4AddrsN != IPV6_ADDRS_N && addr->ifa_dev->dev->ifindex != lo) { // PODERIA USAR O ifa_mask, CONTANDO OS BITS
+    if (ipv4AddrsN != IPV6_ADDRS_N) { // PODERIA USAR O ifa_mask, CONTANDO OS BITS
 
         IP4Addr* const addr4 = &ipv4Addrs[ipv4AddrsN++];
 
@@ -312,28 +310,28 @@ static int igw_itfcs_notify (notifier_block *nb, unsigned long action, void *dat
 
     dev = netdev_notifier_info_to_dev(data);
 
-    printk("IGW: DEVICE %s INDEX %d ACTION %s\n", dev->name, dev->ifindex, netdev_cmd_to_name(action));
+    printk("IGW: DEVICE %s INDEX %d ACTION %s FLAGS 0x%08X OP STATE 0x%X\n", dev->name, dev->ifindex, netdev_cmd_to_name(action), dev->flags, (unsigned)dev->operstate);
 
-    if (!strcmp(dev->name, "lo"))
-        lo = dev->ifindex;
-    elif (action == NETDEV_UP) {
-        addr4 = rtnl_dereference(dev->ip_ptr->ifa_list);
-        while (addr4) {
-            igw_addrs4_add((struct in_ifaddr*)addr4);
-            addr4 = rtnl_dereference(addr4->ifa_next);
+    if (dev->ifindex != lo) {
+        if (!strcmp(dev->name, "lo"))
+            lo = dev->ifindex;
+        elif ((action == NETDEV_CHANGE || action == NETDEV_UP) && (dev->flags & IFF_UP) && (dev->operstate == IF_OPER_UP)) {
+            addr4 = rtnl_dereference(dev->ip_ptr->ifa_list);
+            while (addr4) {
+                igw_addrs4_add((struct in_ifaddr*)addr4);
+                addr4 = rtnl_dereference(addr4->ifa_next);
+            }
+            list_for_each_entry(addr6, &dev->ip6_ptr->addr_list, if_list)
+                igw_addrs6_add((struct inet6_ifaddr*)addr6);
+        } else {
+            addr4 = rtnl_dereference(dev->ip_ptr->ifa_list);
+            while (addr4) {
+                igw_addrs4_del((struct in_ifaddr*)addr4);
+                addr4 = rtnl_dereference(addr4->ifa_next);
+            }
+            list_for_each_entry(addr6, &dev->ip6_ptr->addr_list, if_list)
+                igw_addrs6_del((struct inet6_ifaddr*)addr6);
         }
-        list_for_each_entry(addr6, &dev->ip6_ptr->addr_list, if_list)
-            igw_addrs6_add((struct inet6_ifaddr*)addr6);
-    } elif (action == NETDEV_UNREGISTER ||
-            action == NETDEV_GOING_DOWN ||
-            action == NETDEV_DOWN) {
-        addr4 = rtnl_dereference(dev->ip_ptr->ifa_list);
-        while (addr4) {
-            igw_addrs4_del((struct in_ifaddr*)addr4);
-            addr4 = rtnl_dereference(addr4->ifa_next);
-        }
-        list_for_each_entry(addr6, &dev->ip6_ptr->addr_list, if_list)
-            igw_addrs6_del((struct inet6_ifaddr*)addr6);
     }
 
     igw_release();
@@ -366,7 +364,7 @@ static int igw_init (void) {
     lock = 0;
 
     //
-    lo = 0;
+    lo = ITFC_INDEX_INVALID;
 
     ipv4AddrsN = 0;
     ipv6AddrsN = 0;
