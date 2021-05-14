@@ -207,6 +207,18 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
     }
 }
 
+// OVERWRITE O IP COM O PREFIXO
+static void igw_prefixize6 (u8* ip, const u8* prefix, uint prefixLen) {
+
+    while (prefixLen) {
+        const uint amount = (prefixLen < 8) ? prefixLen : 8;
+        const uint mask = (0xFFU << (8 - amount)) & 0xFFU;
+        *ip &= ~mask;
+        *ip++ |= *prefix++ & mask;
+        prefixLen -= amount;
+    }
+}
+
 static int igw_sock_create (int family, int type, int protocol, struct socket **res) {
 
     int ret;
@@ -224,8 +236,10 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
     } else
         return sock_create_REAL(family, type, protocol, res);
 
+
     if ((ret = sock_create_REAL(family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0, res)) >= 0) {
         struct sock* sk = (*res)->sk;
+        igw_acquire();
         if (family == AF_INET) {
             Addr4* addr = &addrs4[protocol % addrs4N];
             // TODO: FIXME: HANDLE PREFIX LEN
@@ -237,19 +251,19 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
             //if (sk->sk_prot->rehash)
                 //sk->sk_prot->rehash(sk);
             // TODO: FIXME: HANDLE FAILURE HERE
+            igw_release();
             (void)inet_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
         } else {
             Addr6* addr = &addrs6[protocol % addrs6N];
             struct sockaddr_in6 sockAddr = { .sin6_family = AF_INET6, .sin6_port = 0, .sin6_flowinfo = 0, .sin6_scope_id = 0 };
 
-            sk->sk_bound_dev_if = addr->itfc;
-
             // GERA UM ALEATÓRIO
             ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[0] = rdtsc();
             ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[1] = rdtsc() + protocol; // (+ jiffies) << 32
-
             // INSERE O PREFIXO
-             //(addrs6[protocol % addrs6N]
+            igw_prefixize6(sockAddr.sin6_addr.in6_u.u6_addr8, addr->prefix, addr->prefixLen);
+            sk->sk_bound_dev_if = addr->itfc;
+            igw_release();
             (void)inet6_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
         }
     }
