@@ -151,7 +151,7 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
         Addr6* const addr6 = &addrs6[addrs6N++];
 
-        printk("IGW: ADDR6 ADD %s %02X%02X:%02X%02X:%02X%02X:%02X%02X%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", addr->idev->dev->name,FMTIPV6(addr->addr.in6_u.u6_addr8), addr->prefix_len);
+        printk("IGW: ADDR6 ADD %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", addr->idev->dev->name,FMTIPV6(addr->addr.in6_u.u6_addr8), addr->prefix_len);
 
         addr6->addr = addr;
         addr6->until = 0;
@@ -185,7 +185,7 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
     while (i != addrs6N) {
         if (addrs6[i].addr == addr) {
-            printk("IGW: ADDR6 DEL %s %02X%02X:%02X%02X:%02X%02X:%02X%02X%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", addr->idev->dev->name, FMTIPV6(addrs6[i].prefix), addrs6[i].prefixLen);
+            printk("IGW: ADDR6 DEL %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", addr->idev->dev->name, FMTIPV6(addrs6[i].prefix), addrs6[i].prefixLen);
             if (i != --addrs6N)
                 memcpy(&addrs6[i], &addrs6[addrs6N], sizeof(Addr6));
         } else
@@ -223,21 +223,17 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
 
     int ret;
 
-    printk("IGW: SOCKET CREATE\n");
-
-    if (family == 0x2562) {
+    if (family == AF_INET && protocol >= 100) {
         if (addrs4N == 0)
             return -EINVAL;
-        family = AF_INET;
-    } elif (family == 0x2563) {
-        if (addrs6N == 6)
+    } elif (family == AF_INET6 && protocol >= 100) {
+        if (addrs6N == 0)
             return -EINVAL;
-        family = AF_INET6;
     } else
         return sock_create_REAL(family, type, protocol, res);
 
-
-    if ((ret = sock_create_REAL(family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0, res)) >= 0) {
+    //| SOCK_NONBLOCK | SOCK_CLOEXEC
+    if ((ret = sock_create_REAL(family, SOCK_STREAM, 0, res)) >= 0) {
         struct sock* sk = (*res)->sk;
         igw_acquire();
         if (family == AF_INET) {
@@ -252,6 +248,9 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
                 //sk->sk_prot->rehash(sk);
             // TODO: FIXME: HANDLE FAILURE HERE
             igw_release();
+#if 0
+            printk("BOUND IPV4 SOCKET TO FAMILY %d %u.%u.%u.%u\n", sockAddr.sin_family, FMTIPV4(sockAddr.sin_addr.s_addr));
+#endif
             (void)inet_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
         } else {
             Addr6* addr = &addrs6[protocol % addrs6N];
@@ -264,6 +263,10 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
             igw_prefixize6(sockAddr.sin6_addr.in6_u.u6_addr8, addr->prefix, addr->prefixLen);
             sk->sk_bound_dev_if = addr->itfc;
             igw_release();
+#if 0
+            printk("BOUND IPV6 SOCKET TO FAMILY %d %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X\n",
+                sockAddr.sin6_family, FMTIPV6(sockAddr.sin6_addr.in6_u.u6_addr8));
+#endif
             (void)inet6_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
         }
     }
