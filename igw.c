@@ -235,15 +235,15 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
 static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
-    uint i;
+    uint i = 0;
 
-    for (i = 0; i != ipv6AddrsN; i++) {
+    while (i != ipv6AddrsN) {
         if (ipv6Addrs[i].addr == addr) {
             printk("ADDR6 DEL %u %02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", i, FMTIPV6(ipv6Addrs[i].prefix), ipv6Addrs[i].prefixLen);
-            if (i == --ipv6AddrsN)
-                break;
-            memcpy(&ipv6Addrs[i], &ipv6Addrs[ipv6AddrsN], sizeof(IP6Addr));
-        }
+            if (i != --ipv6AddrsN)
+                memcpy(&ipv6Addrs[i], &ipv6Addrs[ipv6AddrsN], sizeof(IP6Addr));
+        } else
+            i++;
     }
 }
 
