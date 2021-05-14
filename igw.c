@@ -7,6 +7,10 @@
 
     IPV4
         bind_non_local 0
+
+    TENTARRETIRAR O MODULO DUAS VEZEs:
+    - A PRIMEIRA SÓ RETIRA OS HOOKS
+    - A OUTRA SAI DE VEZ
 */
 
 
@@ -78,13 +82,15 @@ extern int (*sock_create_USE) (int family, int type, int protocol, struct socket
 #define FMTIPV4(addr) ((addr) & 0xFF), (((addr) >> 8) & 0xFF), (((addr) >> 16) & 0xFF), (((addr) >> 24) & 0xFF)
 #endif
 
+#define ADDR_FLAGS_SCOPE_LINK 1U
+
 typedef struct Addr4 Addr4;
 typedef struct Addr6 Addr6;
 
 struct Addr4 {
     struct in_ifaddr* addr;
     u64 until;
-    u32 reserved;
+    u32 flags;
     u16 itfc;
     u16 prefixLen;
     u32 prefix;
@@ -93,7 +99,7 @@ struct Addr4 {
 struct Addr6 {
     struct inet6_ifaddr* addr;
     u64 until;
-    u32 reserved;
+    u32 flags;
     u16 itfc;
     u16 prefixLen;
     u8 prefix[16];
@@ -137,10 +143,10 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
         printk("IGW: ADDR6 ADD %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", addr->idev->dev->name,FMTIPV6(addr->addr.in6_u.u6_addr8), addr->prefix_len);
 
-        addr6->addr = addr;
-        addr6->until = 0;
-        addr6->reserved  = 0;
-        addr6->itfc = addr->idev->dev->ifindex;
+        addr6->addr      = addr;
+        addr6->until     = 0;
+        addr6->flags     = 0;
+        addr6->itfc      = addr->idev->dev->ifindex;
         addr6->prefixLen = addr->prefix_len;
         memcpy(addr6->prefix, addr->addr.in6_u.u6_addr8, 16);
     }
@@ -156,7 +162,7 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
         addr4->addr      = addr;
         addr4->until     = 0;
-        addr4->reserved  = 0;
+        addr4->flags     = 0;
         addr4->itfc      = addr->ifa_dev->dev->ifindex;
         addr4->prefixLen = addr->ifa_prefixlen;
         addr4->prefix    = addr->ifa_address;
@@ -243,9 +249,8 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
             ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[1] = rdtsc() + protocol; // (+ jiffies) << 32
             // INSERE O PREFIXO
             igw_prefixize6(sockAddr.sin6_addr.in6_u.u6_addr8, addr->prefix, addr->prefixLen);
-#if 0 // O MEU IPV6 SAI POR UMA INTERFACE EENTRAPOR OUTRA,ENTÃONAOMECHEAQUI
-            sk->sk_bound_dev_if = addr->itfc;
-#endif
+            if (addr->flags & ADDR_FLAGS_SCOPE_LINK)
+                sk->sk_bound_dev_if = addr->itfc;
             igw_release();
 #if 0
             printk("BOUND IPV6 SOCKET TO FAMILY %d %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X\n",
