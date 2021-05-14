@@ -249,15 +249,15 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
 static void igw_addrs4_del (const struct in_ifaddr* const addr) {
 
-    uint i;
+    uint i = 0;
 
-    for (i = 0; i != ipv4AddrsN; i++) {
+    while (i != ipv4AddrsN) {
         if (ipv4Addrs[i].addr == addr) {
             printk("ADDR4 DEL %u %u.%u.%u.%u/%u\n", i, FMTIPV4(ipv4Addrs[i].prefix), ipv4Addrs[i].prefixLen);
-            if (i == --ipv4AddrsN)
-                break;
-            memcpy(&ipv4Addrs[i], &ipv4Addrs[ipv4AddrsN], sizeof(IP4Addr));
-        }
+            if (i != --ipv4AddrsN)
+                memcpy(&ipv4Addrs[i], &ipv4Addrs[ipv4AddrsN], sizeof(IP4Addr));
+        } else
+            i++;
     }
 }
 
