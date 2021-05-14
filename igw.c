@@ -1,37 +1,12 @@
 /*
-    interface unregister/down/no carrier
-        remove todos os endereços ipv4 com == itfc
-        remove todos os endereços ipv6 com == itfc
-
     endereço adicionado
         -> adiciona ele
 
-        IPV6
-            device prefix prefixlen
-            se nao for lo
-            se nao for a rede local fe80::
-            bind_non_local 1
+    IPV6
+        bind_non_local 1
 
-        IPV4
-            bind_non_local 0
-            device
-
-    interface register/up/carrier
-        lista todos os endereços ipv4 dela
-            adiciona eles
-        lista todos os endereços ipv4 dela
-            adiciona eles
-
-    socket()
-        IPV4
-            -> def->iifindex
-        IPV6
-            -> def->iifindex
-            -> addr
-                gera um aleatório
-                coloca o prefixo por cima
-
-
+    IPV4
+        bind_non_local 0
 */
 
 
@@ -44,35 +19,6 @@ se o prefixo mudar
 
 if again
     de tempos em tempos adiciona novos endereços
-
-
-struct addrs {
-    u16 prev;
-    u16 next;
-    ATEQYABDIOIDEYSARPARABIVASCONEXOES
-      QUANDOSERADELETADO
-PREFIX LEN
-PREFIX
-};
-
-
-int sock_create(int family, int type, int protocol, struct socket **res)
-{
-    return __sock_create(current->nsproxy->net_ns, family, type, protocol, res, 0);
-}
-EXPORT_SYMBOL(sock_create);
-
-
-// O sock_setsockopt usa isso
-//   sock_bindtoindex_locked(()
-// que aí dá nisso
-struct sock* sk;
-sk->sk_bound_dev_if = ifindex;
-if (sk->sk_prot->rehash)
-    sk->sk_prot->rehash(sk);
-
-int sock_setsockopt(struct socket *sock, int level, int optname, sockptr_t optval, unsigned int optlen)
-
 
 itfcAddrs[4096]; //
 
@@ -102,8 +48,10 @@ transforma o socket()
 #include <linux/net.h>
 #include <linux/ipv6.h>
 #include <net/ip.h>
+#include <net/inet_common.h>
 #include <net/if_inet6.h>
 #include <net/addrconf.h>
+#include <uapi/linux/in6.h>
 
 /*
 net/socket.c
@@ -146,10 +94,10 @@ extern int (*sock_create_USE) (int family, int type, int protocol, struct socket
 #define FMTIPV4(addr) ((addr) & 0xFF), (((addr) >> 8) & 0xFF), (((addr) >> 16) & 0xFF), (((addr) >> 24) & 0xFF)
 #endif
 
-typedef struct IP4Addr IP4Addr;
-typedef struct IP6Addr IP6Addr;
+typedef struct Addr4 Addr4;
+typedef struct Addr6 Addr6;
 
-struct IP4Addr {
+struct Addr4 {
     struct in_ifaddr* addr;
     u64 until;
     u32 reserved;
@@ -158,7 +106,7 @@ struct IP4Addr {
     u32 prefix;
 };
 
-struct IP6Addr {
+struct Addr6 {
     struct inet6_ifaddr* addr;
     u64 until;
     u32 reserved;
@@ -174,11 +122,11 @@ struct IP6Addr {
 
 static uint lo;
 
-static uint ipv4AddrsN;
-static uint ipv6AddrsN;
+static uint addrs4N;
+static uint addrs6N;
 
-static struct IP4Addr ipv4Addrs[IPV4_ADDRS_N];
-static struct IP6Addr ipv6Addrs[IPV6_ADDRS_N];
+static struct Addr4 addrs4[IPV4_ADDRS_N];
+static struct Addr6 addrs6[IPV6_ADDRS_N];
 
 static int lock;
 
@@ -199,9 +147,9 @@ static inline void igw_release (void) {
 // TODO: NUNCA ADICIONAR REPETIDOS, SEMPRE REMOVER TODOS
 static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
-    if (ipv6AddrsN != IPV6_ADDRS_N && !(addr->addr.in6_u.u6_addr8[0] == 0xFE && addr->addr.in6_u.u6_addr8[1] == 0x80)) {
+    if (addrs6N != IPV6_ADDRS_N && !(addr->addr.in6_u.u6_addr8[0] == 0xFE && addr->addr.in6_u.u6_addr8[1] == 0x80)) {
 
-        IP6Addr* const addr6 = &ipv6Addrs[ipv6AddrsN++];
+        Addr6* const addr6 = &addrs6[addrs6N++];
 
         printk("IGW: ADDR6 ADD %s %02X%02X:%02X%02X:%02X%02X:%02X%02X%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", addr->idev->dev->name,FMTIPV6(addr->addr.in6_u.u6_addr8), addr->prefix_len);
 
@@ -216,9 +164,9 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
 static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
-    if (ipv4AddrsN != IPV6_ADDRS_N) { // PODERIA USAR O ifa_mask, CONTANDO OS BITS
+    if (addrs4N != IPV6_ADDRS_N) { // PODERIA USAR O ifa_mask, CONTANDO OS BITS
 
-        IP4Addr* const addr4 = &ipv4Addrs[ipv4AddrsN++];
+        Addr4* const addr4 = &addrs4[addrs4N++];
 
         printk("IGW: ADDR4 ADD %s %u.%u.%u.%u/%u\n", addr->ifa_dev->dev->name, FMTIPV4(addr->ifa_address), addr->ifa_prefixlen);
 
@@ -235,11 +183,11 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
     uint i = 0;
 
-    while (i != ipv6AddrsN) {
-        if (ipv6Addrs[i].addr == addr) {
-            printk("IGW: ADDR6 DEL %s %02X%02X:%02X%02X:%02X%02X:%02X%02X%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", addr->idev->dev->name, FMTIPV6(ipv6Addrs[i].prefix), ipv6Addrs[i].prefixLen);
-            if (i != --ipv6AddrsN)
-                memcpy(&ipv6Addrs[i], &ipv6Addrs[ipv6AddrsN], sizeof(IP6Addr));
+    while (i != addrs6N) {
+        if (addrs6[i].addr == addr) {
+            printk("IGW: ADDR6 DEL %s %02X%02X:%02X%02X:%02X%02X:%02X%02X%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", addr->idev->dev->name, FMTIPV6(addrs6[i].prefix), addrs6[i].prefixLen);
+            if (i != --addrs6N)
+                memcpy(&addrs6[i], &addrs6[addrs6N], sizeof(Addr6));
         } else
             i++;
     }
@@ -249,11 +197,11 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
 
     uint i = 0;
 
-    while (i != ipv4AddrsN) {
-        if (ipv4Addrs[i].addr == addr) {
-            printk("IGW: ADDR4 DEL %s %u.%u.%u.%u/%u\n", addr->ifa_dev->dev->name, FMTIPV4(ipv4Addrs[i].prefix), ipv4Addrs[i].prefixLen);
-            if (i != --ipv4AddrsN)
-                memcpy(&ipv4Addrs[i], &ipv4Addrs[ipv4AddrsN], sizeof(IP4Addr));
+    while (i != addrs4N) {
+        if (addrs4[i].addr == addr) {
+            printk("IGW: ADDR4 DEL %s %u.%u.%u.%u/%u\n", addr->ifa_dev->dev->name, FMTIPV4(addrs4[i].prefix), addrs4[i].prefixLen);
+            if (i != --addrs4N)
+                memcpy(&addrs4[i], &addrs4[addrs4N], sizeof(Addr4));
         } else
             i++;
     }
@@ -261,10 +209,52 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
 
 static int igw_sock_create (int family, int type, int protocol, struct socket **res) {
 
+    int ret;
+
     printk("IGW: SOCKET CREATE\n");
 
-//ASINCRONO!!!
-    return sock_create_REAL(family, type, protocol, res);
+    if (family != 0x2562) {
+        if (addrs4N == 0)
+            return -EINVAL;
+        family = AF_INET;
+    } elif (family != 0x2563) {
+        if (addrs6N == 6)
+            return -EINVAL;
+        family = AF_INET6;
+    } else
+        return sock_create_REAL(family, type, protocol, res);
+
+    if ((ret = sock_create_REAL(family, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0, res)) >= 0) {
+        struct sock* sk = (*res)->sk;
+        if (family == AF_INET) {
+            Addr4* addr = &addrs4[protocol % addrs4N];
+            // TODO: FIXME: HANDLE PREFIX LEN
+            struct sockaddr_in sockAddr = { .sin_family = AF_INET, .sin_port = 0, .sin_addr = { .s_addr = addr->prefix } };
+            // O sock_setsockopt usa isso
+            //   sock_bindtoindex_locked(()
+            // que aí dá nisso
+            sk->sk_bound_dev_if = addr->itfc;
+            //if (sk->sk_prot->rehash)
+                //sk->sk_prot->rehash(sk);
+            // TODO: FIXME: HANDLE FAILURE HERE
+            (void)inet_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
+        } else {
+            Addr6* addr = &addrs6[protocol % addrs6N];
+            struct sockaddr_in6 sockAddr = { .sin6_family = AF_INET6, .sin6_port = 0, .sin6_flowinfo = 0, .sin6_scope_id = 0 };
+
+            sk->sk_bound_dev_if = addr->itfc;
+
+            // GERA UM ALEATÓRIO
+            ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[0] = rdtsc();
+            ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[1] = rdtsc() + protocol; // (+ jiffies) << 32
+
+            // INSERE O PREFIXO
+             //(addrs6[protocol % addrs6N]
+            (void)inet6_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
+        }
+    }
+
+    return ret;
 }
 
 static int igw_addrs4_notify (notifier_block *nb, unsigned long action, void *addr) {
@@ -366,14 +356,14 @@ static int igw_init (void) {
     //
     lo = ITFC_INDEX_INVALID;
 
-    ipv4AddrsN = 0;
-    ipv6AddrsN = 0;
+    addrs4N = 0;
+    addrs6N = 0;
 
     igw_acquire();
     igw_release();
 
     // INSERT THE HOOKS
-    //sock_create_USE = igw_sock_create;
+    sock_create_USE = igw_sock_create;
 
     register_netdevice_notifier(&notifyItfcs);
     register_inetaddr_notifier(&notifyAddrs4);
@@ -389,7 +379,7 @@ static void igw_exit (void) {
     printk("IGW: UNLOADING...\n");
 
     // REMOVE THE HOOKS
-    //sock_create_USE = sock_create_REAL;
+    sock_create_USE = sock_create_REAL;
 
     unregister_netdevice_notifier(&notifyItfcs);
     unregister_inetaddr_notifier(&notifyAddrs4);
