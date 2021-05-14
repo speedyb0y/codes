@@ -316,9 +316,7 @@ static int igw_itfcs_notify (notifier_block *nb, unsigned long action, void *dat
 
     if (!strcpy(dev->name, "lo"))
         lo = dev->ifindex;
-
-    // TODO: FIXME: MARCA OS ENDEREÇOS COMO USÁVEIS/NÃO USAVEIS CONFORME O action
-    if (action == NETDEV_UP) {
+    elif (action == NETDEV_UP) {
         addr4 = rtnl_dereference(dev->ip_ptr->ifa_list);
         while (addr4) {
             igw_addrs4_add((struct in_ifaddr*)addr4);
