@@ -88,7 +88,7 @@ typedef struct Addr4 Addr4;
 typedef struct Addr6 Addr6;
 
 struct Addr4 {
-    struct in_ifaddr* addr;
+    u64 addr;
     u64 until;
     u32 flags;
     u16 itfc;
@@ -97,7 +97,7 @@ struct Addr4 {
 };
 
 struct Addr6 {
-    struct inet6_ifaddr* addr;
+    u64 addr;
     u64 until;
     u32 flags;
     u16 itfc;
@@ -143,7 +143,7 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
         printk("IGW: ADDR6 ADD %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", addr->idev->dev->name,FMTIPV6(addr->addr.in6_u.u6_addr8), addr->prefix_len);
 
-        addr6->addr      = addr;
+        addr6->addr      = (u64)addr;
         addr6->until     = 0;
         addr6->flags     = 0;
         addr6->itfc      = addr->idev->dev->ifindex;
@@ -160,7 +160,7 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
         printk("IGW: ADDR4 ADD %s %u.%u.%u.%u/%u\n", addr->ifa_dev->dev->name, FMTIPV4(addr->ifa_address), addr->ifa_prefixlen);
 
-        addr4->addr      = addr;
+        addr4->addr      = (u64)addr;
         addr4->until     = 0;
         addr4->flags     = 0;
         addr4->itfc      = addr->ifa_dev->dev->ifindex;
@@ -174,7 +174,7 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
     uint i = 0;
 
     while (i != addrs6N) {
-        if (addrs6[i].addr == addr) {
+        if (addrs6[i].addr == (u64)addr) {
             printk("IGW: ADDR6 DEL %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", addr->idev->dev->name, FMTIPV6(addrs6[i].prefix), addrs6[i].prefixLen);
             if (i != --addrs6N)
                 memcpy(&addrs6[i], &addrs6[addrs6N], sizeof(Addr6));
@@ -188,7 +188,7 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
     uint i = 0;
 
     while (i != addrs4N) {
-        if (addrs4[i].addr == addr) {
+        if (addrs4[i].addr == (u64)addr) {
             printk("IGW: ADDR4 DEL %s %u.%u.%u.%u/%u\n", addr->ifa_dev->dev->name, FMTIPV4(addrs4[i].prefix), addrs4[i].prefixLen);
             if (i != --addrs4N)
                 memcpy(&addrs4[i], &addrs4[addrs4N], sizeof(Addr4));
@@ -232,7 +232,8 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
             // O sock_setsockopt usa isso
             //   sock_bindtoindex_locked(()
             // que aí dá nisso
-            sk->sk_bound_dev_if = addr->itfc;
+            if (addr->flags & ADDR_FLAGS_SCOPE_LINK)
+                sk->sk_bound_dev_if = addr->itfc;
             //if (sk->sk_prot->rehash)
                 //sk->sk_prot->rehash(sk);
             // TODO: FIXME: HANDLE FAILURE HERE
