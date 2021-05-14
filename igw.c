@@ -223,10 +223,10 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
 
     int ret;
 
-    if (family == AF_INET && protocol >= 100) {
+    if (family == AF_INET && protocol >= IPPROTO_MAX) {
         if (addrs4N == 0)
             return -EINVAL;
-    } elif (family == AF_INET6 && protocol >= 100) {
+    } elif (family == AF_INET6 && protocol >= IPPROTO_MAX) {
         if (addrs6N == 0)
             return -EINVAL;
     } else
