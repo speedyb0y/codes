@@ -243,7 +243,9 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
             ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[1] = rdtsc() + protocol; // (+ jiffies) << 32
             // INSERE O PREFIXO
             igw_prefixize6(sockAddr.sin6_addr.in6_u.u6_addr8, addr->prefix, addr->prefixLen);
+#if 0 // O MEU IPV6 SAI POR UMA INTERFACE EENTRAPOR OUTRA,ENTÃONAOMECHEAQUI
             sk->sk_bound_dev_if = addr->itfc;
+#endif
             igw_release();
 #if 0
             printk("BOUND IPV6 SOCKET TO FAMILY %d %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X\n",
@@ -286,7 +288,7 @@ static int igw_addrs6_notify (notifier_block *nb, unsigned long action, void* ad
 
     igw_release();
 
-    return 0;
+    return NOTIFY_OK;
 }
 
 static int igw_itfcs_notify (notifier_block *nb, unsigned long action, void *data) {
@@ -325,7 +327,7 @@ static int igw_itfcs_notify (notifier_block *nb, unsigned long action, void *dat
 
     igw_release();
 
-    return 0;
+    return NOTIFY_OK;
 }
 
 static notifier_block notifyItfcs = {
