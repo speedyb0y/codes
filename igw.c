@@ -140,7 +140,6 @@ static inline void igw_release (void) {
     __atomic_store_n(&lock, 0, __ATOMIC_SEQ_CST);
 }
 
-// TODO: NUNCA ADICIONAR REPETIDOS, SEMPRE REMOVER TODOS
 static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
     if (addrs6N != IPV6_ADDRS_N && !(addr->addr.in6_u.u6_addr8[0] == 0xFE && addr->addr.in6_u.u6_addr8[1] == 0x80)) {
@@ -149,7 +148,7 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
         while (count--)
             if (addr6++->addr == (u64)addr)
-                return;
+                return; // NUNCA ADICIONAR REPETIDOS
 
         addr6->addr      = (u64)addr;
         addr6->until     = addr->prefered_lft;
@@ -158,12 +157,15 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
         addr6->prefixLen = addr->prefix_len;
         memcpy(addr6->prefix, addr->addr.in6_u.u6_addr8, 16);
 
-        printk("IGW: ADDR6 ADDED %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u SCOPE %u\n",
+        printk("IGW: ADDR6 ADDED %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u SCOPE %u FLAGS %u\n",
             addr->idev->dev->name,
         FMTIPV6(addr6->prefix),
                 addr6->prefixLen,
-                addr6->flags
+                addr6->flags,
+            addr->flags
             );
+
+        addrs6N++;
     }
 }
 
@@ -192,6 +194,8 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
             addr4->prefixLen,
             addr4->flags
             );
+
+        addrs4N++;
     }
 }
 
@@ -201,9 +205,11 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
     while (i != addrs6N) {
         if (addrs6[i].addr == (u64)addr) {
-            printk("IGW: ADDR6 DEL %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", addr->idev->dev->name, FMTIPV6(addrs6[i].prefix), addrs6[i].prefixLen);
+            printk("IGW: ADDR6 DELETED %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n",
+                addr->idev->dev->name, FMTIPV6(addrs6[i].prefix), addrs6[i].prefixLen);
             if (i != --addrs6N)
                 memcpy(&addrs6[i], &addrs6[addrs6N], sizeof(Addr6));
+            break;
         } else
             i++;
     }
@@ -215,9 +221,11 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
 
     while (i != addrs4N) {
         if (addrs4[i].addr == (u64)addr) {
-            printk("IGW: ADDR4 DEL %s %u.%u.%u.%u/%u\n", addr->ifa_dev->dev->name, FMTIPV4(addrs4[i].prefix), addrs4[i].prefixLen);
+            printk("IGW: ADDR4 DELETED %s %u.%u.%u.%u/%u\n",
+                addr->ifa_dev->dev->name, FMTIPV4(addrs4[i].prefix), addrs4[i].prefixLen);
             if (i != --addrs4N)
                 memcpy(&addrs4[i], &addrs4[addrs4N], sizeof(Addr4));
+            break;
         } else
             i++;
     }
@@ -281,13 +289,11 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
     return ret;
 }
 
+// TODO: FIXME: E OS DEMAIS EVENTOS?
 static int igw_addrs4_notify (notifier_block *nb, unsigned long action, void *addr) {
 
-    // TODO: ifa_prefixlen OU ifa_mask?
     igw_acquire();
 
-    //addr->valid_lft;
-    //addr->prefered_lft;
     if (action == NETDEV_UP)
         igw_addrs4_add((struct in_ifaddr*)addr);
     elif (action == NETDEV_DOWN)
@@ -302,8 +308,6 @@ static int igw_addrs6_notify (notifier_block *nb, unsigned long action, void* ad
 
     igw_acquire();
 
-    //addr->valid_lft;
-    //addr->prefered_lft;
     if (action == NETDEV_UP)
         igw_addrs6_add((struct inet6_ifaddr*)addr);
     elif (action == NETDEV_DOWN)
