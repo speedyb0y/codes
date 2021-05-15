@@ -1,5 +1,7 @@
 /*
     gcc -Wall -Wextra -Werror -fwhole-program -O2 ra.c -o ra
+
+    TODO: FIXME: APÓS CERTO TEMPO SEM RECEBER O RA, DELETAR E DESMARCAR
 */
 
 #define _GNU_SOURCE 1
@@ -74,9 +76,7 @@ struct Link {
     const char* gwOutIP;
     u8 gwMAC[MAC_SIZE]; // 6
     u16 prefixLen;
-    u32 table;
     u32 mtu;
-    u32 mark;
     u32 addrsN;
     u8 prefix[IPV6_ADDR_SIZE];
     u8* addrs;
@@ -189,8 +189,8 @@ int main (int argsN, char** args) {
     args++;
     argsN--;
 
-    if (argsN % 8 != 1) {
-        printf("USAGE: ra RULE_FROM ITFC GW_MAC GW_IP TABLE MARK ADDRS_N ITFC_OUT GW_OUT ... \n");
+    if (argsN % 6 != 1) {
+        printf("USAGE: ra METRIC0 ITFC GW_MAC GW_IP ADDRS_N ITFC_OUT GW_OUT ... \n");
         return 1;
     }
 
@@ -204,14 +204,14 @@ int main (int argsN, char** args) {
         return 1;
     }
 
-    const int sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6);
+    const int sock = socket(AF_INET6, SOCK_RAW, IPPROTO_ICMPV6); //, IPPROTO_ICMPV6
 
     if (sock == -1) {
         printf("ERROR: FAILED TO OPEN SOCKET: %s\n", strerror(errno));
         return 1;
     }
 
-    const uint linksN = argsN / 8;
+    const uint linksN = argsN / 6;
 
     Link links[16];
 
@@ -220,14 +220,10 @@ int main (int argsN, char** args) {
         const char* const _itfc     = args[0];
               char* const _gwMAC    = args[1];
         const char* const _gwIP     = args[2];
-        const char* const _table    = args[3];
-        const char* const _mark     = args[4];
-        const char* const _addrsN   = args[5];
-        const char* const _itfcOut  = args[6];
-        const char* const _gwOutIP  = args[7]; args += 8;
+        const char* const _addrsN   = args[3];
+        const char* const _outItfc  = args[4];
+        const char* const _outGW  = args[5]; args += 6;
 
-        const uint table    = atoi(_table);
-        const uint mark     = atoi(_mark);
         const uint addrsN   = atoi(_addrsN);
 
         { struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, _itfc, IFNAMSIZ - 1);
@@ -238,10 +234,10 @@ int main (int argsN, char** args) {
             }
         }
 
-        { struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, _itfcOut, IFNAMSIZ - 1);
+        { struct ifreq ifr = { 0 }; strncpy(ifr.ifr_name, _outItfc, IFNAMSIZ - 1);
 
             if (ioctl(sock, SIOCGIFINDEX, &ifr) == -1) {
-                printf("BAD INTERFACE OUT %s\n", _itfcOut);
+                printf("BAD INTERFACE OUT %s\n", _outItfc);
                 return 1;
             }
         }
@@ -251,18 +247,6 @@ int main (int argsN, char** args) {
        //int             ifr_metric;
        //int             ifr_mtu;
        //struct ifmap    ifr_map;
-
-        if (table < 1 ||
-            table > 32000) {
-            printf("BAD TABLE %s\n", _table);
-            return 1;
-        }
-
-        if (mark < 1 ||
-            mark > 1000) {
-            printf("BAD MARK %s\n", _mark);
-            return 1;
-        }
 
         if (addrsN < 1 ||
             addrsN > 1000) {
@@ -284,13 +268,11 @@ int main (int argsN, char** args) {
         Link* const link = &links[i];
 
         link->itfc      = _itfc;
-        link->itfcOut   = _itfcOut;
+        link->itfcOut   = _outItfc;
         link->mtu       = 0;
-        link->table     = table;
-        link->mark      = mark;
         link->prefixLen = 0;
         link->prefix[0] = 0;
-        link->gwOutIP   = _gwOutIP;
+        link->gwOutIP   = _outGW;
         link->gwIP      = _gwIP;
         link->gwMAC[0]  = strtoul(_gwMAC +  0, NULL, 16);
         link->gwMAC[1]  = strtoul(_gwMAC +  3, NULL, 16);
@@ -328,7 +310,7 @@ int main (int argsN, char** args) {
 
         if (msgsN == -1) {
             if (errno != EINTR)
-                return 1;
+                break;
             continue;
         }
 
@@ -426,14 +408,14 @@ int main (int argsN, char** args) {
                                 prefixFlags, prefixValidLT, prefixPreferredLT, linkID, link->itfc, linkPrefixStr
                                 );
 
-                            if (link->prefixLen)
-                                IP6("rule del priority %u table %u", ruleFrom, link->table);
+                            //if (link->prefixLen)
+                                //IP6("rule del priority %u table %u", ruleFrom, link->table);
 
                             for (uint i = 0; i != link->addrsN; i++) {
 
                                 // REMOVE A ROTA ATUAL
                                 // SEMPRE TEM UM LÁ - NO COMEÇO É UM BLACKHOLE
-                                IP6("route del table %u default", link->table + i);
+                                //IP6("route del table %u default", link->table + i);
 
                                 u8* const addr = link->addrs + i*IPV6_ADDR_SIZE;
 
@@ -450,25 +432,19 @@ int main (int argsN, char** args) {
 
                                 // PÕE O ENDEREÕ NOVO
                                 char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(addr, ip);
-                                IP6("addr add nodad dev %s %s/128", link->itfc, ip);
+                                IP6("addr add scope link nodad dev %s %s/128", link->itfc, ip);
                             }
 
                             IP6("route flush cache");
 
                             sleep(3);
 
-                            for (uint i = 0; i != link->addrsN; i++) {
-                                char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(link->addrs + i*IPV6_ADDR_SIZE, ip);
-                                IP6("route add table %u default dev %s via %s src %s", link->table + i, link->itfcOut, link->gwIP, ip);
-                            }
-
-                            IP6("route flush cache");
-
                             // PASSA A USAR ELE
                             memcpy(link->prefix, prefix, IPV6_ADDR_SIZE); link->prefixLen = prefixLen;
 
                             // JÁ SELECIONOU O SOURCE, ENTÃO BASTA JOGAR NA PRIMEIRA TABELA E ASSIM TER UM RULE SÓ
-                            IP6("rule add priority %u table %u from %s", ruleFrom, link->table, prefixStr);
+                            // for i != itfc->addrsN
+                            //IP6("route add metric %u from %s default", link->metric + i, prefixStr);
 
                             printf("   -- DONE\n\n");
                         }
@@ -490,10 +466,10 @@ int main (int argsN, char** args) {
         printf("CLEANING LINK #%u ITFC %s\n", linkID, link->itfc);
 
         if (link->prefixLen) {
-            IP6("rule del priority %u table %u", ruleFrom, link->table);
+            //IP6("rule del priority %u table %u", ruleFrom, link->table);
             for (uint i = 0; i != link->addrsN; i++) {
                 char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(link->addrs + i*IPV6_ADDR_SIZE, ip);
-                IP6("route replace table %u blackhole default", link->table + i);
+                //IP6("route replace metric %u blackhole default", link->metric + i);
                 IP6("addr del dev %s %s/128", link->itfc, ip);
             }
         }
