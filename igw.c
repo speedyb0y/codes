@@ -12,14 +12,11 @@
     - A PRIMEIRA SÓ RETIRA OS HOOKS
     - A OUTRA SAI DE VEZ
 
+    DÁ ERRO!!!
+    strace ip -6 addr add dev eth0  ::212/24 scope host
 
     TODO: FIXME: uma syscall para registrar as rotas
             pois pode ser necessário testar elas primeiro
-*/
-
-
-/*
-preferred_lft 30min valid_lft 2h
 
 se o prefixo mudar
     -> deleta forçadamente o endereço
@@ -142,21 +139,6 @@ static inline void igw_release (void) {
 
 static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
-    if (addr == NULL) {
-        printk("IGW: ADDR6 ADD - NULL");
-        return;
-    }
-
-    if (addr->idev == NULL) {
-        printk("IGW: ADDR6 ADD - NO IDEV!");
-        return;
-    }
-
-    if (addr->idev->dev == NULL) {
-        printk("IGW: ADDR6 ADD - NO DEV!");
-        return;
-    }
-
     if (addrs6N != IPV6_ADDRS_N && !(addr->addr.in6_u.u6_addr8[0] == 0xFE && addr->addr.in6_u.u6_addr8[1] == 0x80)) {
 
         Addr6* addr6 = addrs6; uint count = addrs6N;
@@ -185,21 +167,6 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 }
 
 static void igw_addrs4_add (struct in_ifaddr* const addr) {
-
-    if (addr == NULL) {
-        printk("IGW: ADDR4 ADD - NULL");
-        return;
-    }
-
-    if (addr->ifa_dev == NULL) {
-        printk("IGW: ADDR4 ADD - NO IDEV!");
-        return;
-    }
-
-    if (addr->ifa_dev->dev == NULL) {
-        printk("IGW: ADDR4 ADD - NO DEV!");
-        return;
-    }
 
     if (addrs4N != IPV4_ADDRS_N) { // PODERIA USAR O ifa_mask, CONTANDO OS BITS
 
