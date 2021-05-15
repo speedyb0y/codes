@@ -142,6 +142,21 @@ static inline void igw_release (void) {
 
 static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
+    if (addr == NULL) {
+        printk("IGW: ADDR6 ADD - NULL");
+        return;
+    }
+
+    if (addr->idev == NULL) {
+        printk("IGW: ADDR6 ADD - NO IDEV!");
+        return;
+    }
+
+    if (addr->idev->dev == NULL) {
+        printk("IGW: ADDR6 ADD - NO DEV!");
+        return;
+    }
+
     if (addrs6N != IPV6_ADDRS_N && !(addr->addr.in6_u.u6_addr8[0] == 0xFE && addr->addr.in6_u.u6_addr8[1] == 0x80)) {
 
         Addr6* addr6 = addrs6; uint count = addrs6N;
@@ -157,7 +172,7 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
         addr6->prefixLen = addr->prefix_len;
         memcpy(addr6->prefix, addr->addr.in6_u.u6_addr8, 16);
 
-        printk("IGW: ADDR6 ADDED %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u SCOPE %u FLAGS %u\n",
+        printk("IGW: ADDR6 ADD %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u SCOPE %u FLAGS %u\n",
             addr->idev->dev->name,
         FMTIPV6(addr6->prefix),
                 addr6->prefixLen,
@@ -170,6 +185,21 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 }
 
 static void igw_addrs4_add (struct in_ifaddr* const addr) {
+
+    if (addr == NULL) {
+        printk("IGW: ADDR4 ADD - NULL");
+        return;
+    }
+
+    if (addr->ifa_dev == NULL) {
+        printk("IGW: ADDR4 ADD - NO IDEV!");
+        return;
+    }
+
+    if (addr->ifa_dev->dev == NULL) {
+        printk("IGW: ADDR4 ADD - NO DEV!");
+        return;
+    }
 
     if (addrs4N != IPV4_ADDRS_N) { // PODERIA USAR O ifa_mask, CONTANDO OS BITS
 
@@ -188,7 +218,7 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
         // ifa_valid_lft
         //unsigned long     ifa_tstamp; /* updated timestamp */
-        printk("IGW: ADDR4 ADDED %s %u.%u.%u.%u/%u SCOPE %u\n",
+        printk("IGW: ADDR4 ADD %s %u.%u.%u.%u/%u SCOPE %u\n",
             addr->ifa_dev->dev->name,
     FMTIPV4(addr4->prefix),
             addr4->prefixLen,
@@ -205,7 +235,7 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
     while (i != addrs6N) {
         if (addrs6[i].addr == (u64)addr) {
-            printk("IGW: ADDR6 DELETED %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n",
+            printk("IGW: ADDR6 DEL %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n",
                 addr->idev->dev->name, FMTIPV6(addrs6[i].prefix), addrs6[i].prefixLen);
             if (i != --addrs6N)
                 memcpy(&addrs6[i], &addrs6[addrs6N], sizeof(Addr6));
@@ -221,7 +251,7 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
 
     while (i != addrs4N) {
         if (addrs4[i].addr == (u64)addr) {
-            printk("IGW: ADDR4 DELETED %s %u.%u.%u.%u/%u\n",
+            printk("IGW: ADDR4 DEL %s %u.%u.%u.%u/%u\n",
                 addr->ifa_dev->dev->name, FMTIPV4(addrs4[i].prefix), addrs4[i].prefixLen);
             if (i != --addrs4N)
                 memcpy(&addrs4[i], &addrs4[addrs4N], sizeof(Addr4));
