@@ -85,15 +85,13 @@ extern int (*sock_create_USE) (int family, int type, int protocol, struct socket
 
 #define dbg(...) ({ })
 
-#define ADDR_FLAGS_SCOPE_LINK 1U
-
 typedef struct Addr4 Addr4;
 typedef struct Addr6 Addr6;
 
 struct Addr4 {
     u64 addr;
     u64 until;
-    u32 flags;
+    u32 metrc;
     u16 itfc;
     u16 prefixLen;
     u32 prefix;
@@ -102,7 +100,7 @@ struct Addr4 {
 struct Addr6 {
     u64 addr;
     u64 until;
-    u32 flags;
+    u32 metric;
     u16 itfc;
     u16 prefixLen;
     u8 prefix[16];
@@ -149,17 +147,16 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
         addr6->addr      = (u64)addr;
         addr6->until     = addr->prefered_lft;
-        addr6->flags     = addr->scope;
+        addr6->metric    = addr->rt_priority;
         addr6->itfc      = addr->idev->dev->ifindex;
         addr6->prefixLen = addr->prefix_len;
         memcpy(addr6->prefix, addr->addr.in6_u.u6_addr8, 16);
 
-        printk("IGW: ADDR6 ADD %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u SCOPE %u FLAGS %u\n",
+        printk("IGW: ADDR6 ADD %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u METRIC %u\n",
             addr->idev->dev->name,
         FMTIPV6(addr6->prefix),
                 addr6->prefixLen,
-                addr6->flags,
-            addr->flags
+                addr6->metric
             );
 
         addrs6N++;
@@ -178,18 +175,18 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
         addr4->addr      = (u64)addr;
         addr4->until     = addr->ifa_preferred_lft; // Expiry is at tstamp + HZ * lft
-        addr4->flags     = addr->ifa_scope;
+        addr4->metric    = addr->ifa_rt_priority;
         addr4->itfc      = addr->ifa_dev->dev->ifindex;
         addr4->prefixLen = addr->ifa_prefixlen;
         addr4->prefix    = addr->ifa_address;
 
         // ifa_valid_lft
         //unsigned long     ifa_tstamp; /* updated timestamp */
-        printk("IGW: ADDR4 ADD %s %u.%u.%u.%u/%u SCOPE %u\n",
+        printk("IGW: ADDR4 ADD %s %u.%u.%u.%u/%u METRIC %u\n",
             addr->ifa_dev->dev->name,
     FMTIPV4(addr4->prefix),
             addr4->prefixLen,
-            addr4->flags
+            addr4->metric
             );
 
         addrs4N++;
@@ -202,8 +199,8 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
     while (i != addrs6N) {
         if (addrs6[i].addr == (u64)addr) {
-            printk("IGW: ADDR6 DEL %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n",
-                addr->idev->dev->name, FMTIPV6(addrs6[i].prefix), addrs6[i].prefixLen);
+            printk("IGW: ADDR6 DEL %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u METRIC %u\n",
+                addr->idev->dev->name, FMTIPV6(addrs6[i].prefix), addrs6[i].prefixLen, addrs6[i].metric);
             if (i != --addrs6N)
                 memcpy(&addrs6[i], &addrs6[addrs6N], sizeof(Addr6));
             break;
@@ -218,8 +215,8 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
 
     while (i != addrs4N) {
         if (addrs4[i].addr == (u64)addr) {
-            printk("IGW: ADDR4 DEL %s %u.%u.%u.%u/%u\n",
-                addr->ifa_dev->dev->name, FMTIPV4(addrs4[i].prefix), addrs4[i].prefixLen);
+            printk("IGW: ADDR4 DEL %s %u.%u.%u.%u/%u METRIC %u\n",
+                addr->ifa_dev->dev->name, FMTIPV4(addrs4[i].prefix), addrs4[i].prefixLen, addrs4[i].metric);
             if (i != --addrs4N)
                 memcpy(&addrs4[i], &addrs4[addrs4N], sizeof(Addr4));
             break;
@@ -244,7 +241,9 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
 
     const int ret = sock_create_REAL(family, type, (protocol < IPPROTO_MAX) ? protocol : 0, res);
 
-    if (ret >= 0 && protocol) {
+    // TODO: FIXME: O CERTO SERIA CONSIDERAR family, POIS O protocol É DENTRO DO DOMÍNIO DELE
+    // MAS ASSUMINDO QUE NENHUM OUTRO DOMÍNIO TEM PROTOCOLOS >= QUE O DO IP
+    if (ret >= 0 && protocol >= IPPROTO_MAX) {
         struct socket* sock = *res;
         igw_acquire();
         if (family == AF_INET) {
@@ -255,7 +254,7 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
                 // O sock_setsockopt usa isso
                 //   sock_bindtoindex_locked(()
                 // que aí dá nisso
-                if (addr->flags & ADDR_FLAGS_SCOPE_LINK)
+                if (addr->metric)
                     sock->sk->sk_bound_dev_if = addr->itfc;
                 //if (sk->sk_prot->rehash)
                     //sk->sk_prot->rehash(sk);
@@ -273,7 +272,7 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
             ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[1] = rdtsc() + protocol; // (+ jiffies) << 32
             // INSERE O PREFIXO
             igw_prefixize6(sockAddr.sin6_addr.in6_u.u6_addr8, addr->prefix, addr->prefixLen);
-            if (addr->flags & ADDR_FLAGS_SCOPE_LINK)
+            if (addr->metric)
                 sock->sk->sk_bound_dev_if = addr->itfc;
             igw_release();
             dbg("BOUND IPV6 SOCKET TO FAMILY %d %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X\n",
@@ -327,6 +326,7 @@ static int igw_itfcs_notify (notifier_block *nb, unsigned long action, void *dat
 
     printk("IGW: DEVICE %s INDEX %d ACTION %s FLAGS 0x%08X OP STATE 0x%X\n", dev->name, dev->ifindex, netdev_cmd_to_name(action), dev->flags, (unsigned)dev->operstate);
 
+    // TODO: VERIFICAR SE É LOOPBACK PELA FLAG
     if (dev->ifindex != lo) {
         if (!strcmp(dev->name, "lo"))
             lo = dev->ifindex;
