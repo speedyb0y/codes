@@ -11,6 +11,10 @@
     TENTARRETIRAR O MODULO DUAS VEZEs:
     - A PRIMEIRA SÓ RETIRA OS HOOKS
     - A OUTRA SAI DE VEZ
+
+
+    TODO: FIXME: uma syscall para registrar as rotas
+            pois pode ser necessário testar elas primeiro
 */
 
 
@@ -82,6 +86,8 @@ extern int (*sock_create_USE) (int family, int type, int protocol, struct socket
 #define FMTIPV4(addr) ((addr) & 0xFF), (((addr) >> 8) & 0xFF), (((addr) >> 16) & 0xFF), (((addr) >> 24) & 0xFF)
 #endif
 
+#define dbg(...) ({ })
+
 #define ADDR_FLAGS_SCOPE_LINK 1U
 
 typedef struct Addr4 Addr4;
@@ -106,7 +112,7 @@ struct Addr6 {
 };
 
 #define IPV4_ADDRS_N 2048
-#define IPV6_ADDRS_N 256
+#define IPV6_ADDRS_N 512
 
 #define ITFC_INDEX_INVALID 0xFFFFF
 
@@ -139,33 +145,53 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
     if (addrs6N != IPV6_ADDRS_N && !(addr->addr.in6_u.u6_addr8[0] == 0xFE && addr->addr.in6_u.u6_addr8[1] == 0x80)) {
 
-        Addr6* const addr6 = &addrs6[addrs6N++];
+        Addr6* addr6 = addrs6; uint count = addrs6N;
 
-        printk("IGW: ADDR6 ADD %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", addr->idev->dev->name,FMTIPV6(addr->addr.in6_u.u6_addr8), addr->prefix_len);
+        while (count--)
+            if (addr6++->addr == (u64)addr)
+                return;
 
         addr6->addr      = (u64)addr;
-        addr6->until     = 0;
-        addr6->flags     = 0;
+        addr6->until     = addr->prefered_lft;
+        addr6->flags     = addr->scope;
         addr6->itfc      = addr->idev->dev->ifindex;
         addr6->prefixLen = addr->prefix_len;
         memcpy(addr6->prefix, addr->addr.in6_u.u6_addr8, 16);
+
+        printk("IGW: ADDR6 ADDED %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u SCOPE %u\n",
+            addr->idev->dev->name,
+        FMTIPV6(addr6->prefix),
+                addr6->prefixLen,
+                addr6->flags
+            );
     }
 }
 
 static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
-    if (addrs4N != IPV6_ADDRS_N) { // PODERIA USAR O ifa_mask, CONTANDO OS BITS
+    if (addrs4N != IPV4_ADDRS_N) { // PODERIA USAR O ifa_mask, CONTANDO OS BITS
 
-        Addr4* const addr4 = &addrs4[addrs4N++];
+        Addr4* addr4 = addrs4; uint count = addrs4N;
 
-        printk("IGW: ADDR4 ADD %s %u.%u.%u.%u/%u\n", addr->ifa_dev->dev->name, FMTIPV4(addr->ifa_address), addr->ifa_prefixlen);
+        while (count--)
+            if (addr4++->addr == (u64)addr)
+                return;
 
         addr4->addr      = (u64)addr;
-        addr4->until     = 0;
-        addr4->flags     = 0;
+        addr4->until     = addr->ifa_preferred_lft; // Expiry is at tstamp + HZ * lft
+        addr4->flags     = addr->ifa_scope;
         addr4->itfc      = addr->ifa_dev->dev->ifindex;
         addr4->prefixLen = addr->ifa_prefixlen;
         addr4->prefix    = addr->ifa_address;
+
+        // ifa_valid_lft
+        //unsigned long     ifa_tstamp; /* updated timestamp */
+        printk("IGW: ADDR4 ADDED %s %u.%u.%u.%u/%u SCOPE %u\n",
+            addr->ifa_dev->dev->name,
+    FMTIPV4(addr4->prefix),
+            addr4->prefixLen,
+            addr4->flags
+            );
     }
 }
 
@@ -211,38 +237,30 @@ static void igw_prefixize6 (u8* ip, const u8* prefix, uint prefixLen) {
 
 static int igw_sock_create (int family, int type, int protocol, struct socket **res) {
 
-    int ret;
+    const int ret = sock_create_REAL(family, type, (protocol < IPPROTO_MAX) ? protocol : 0, res);
 
-    if (family == AF_INET && protocol >= IPPROTO_MAX) {
-        if (addrs4N == 0)
-            return -EINVAL;
-    } elif (family == AF_INET6 && protocol >= IPPROTO_MAX) {
-        if (addrs6N == 0)
-            return -EINVAL;
-    } else
-        return sock_create_REAL(family, type, protocol, res);
-
-    if ((ret = sock_create_REAL(family, SOCK_STREAM, 0, res)) >= 0) {
-        struct sock* sk = (*res)->sk;
+    if (ret >= 0 && protocol) {
+        struct socket* sock = *res;
         igw_acquire();
         if (family == AF_INET) {
-            Addr4* addr = &addrs4[protocol % addrs4N];
-            // TODO: FIXME: HANDLE PREFIX LEN
-            struct sockaddr_in sockAddr = { .sin_family = AF_INET, .sin_port = 0, .sin_addr = { .s_addr = addr->prefix } };
-            // O sock_setsockopt usa isso
-            //   sock_bindtoindex_locked(()
-            // que aí dá nisso
-            if (addr->flags & ADDR_FLAGS_SCOPE_LINK)
-                sk->sk_bound_dev_if = addr->itfc;
-            //if (sk->sk_prot->rehash)
-                //sk->sk_prot->rehash(sk);
-            // TODO: FIXME: HANDLE FAILURE HERE
-            igw_release();
-#if 0
-            printk("BOUND IPV4 SOCKET TO FAMILY %d %u.%u.%u.%u\n", sockAddr.sin_family, FMTIPV4(sockAddr.sin_addr.s_addr));
-#endif
-            (void)inet_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
-        } else {
+            if (addrs4N) {
+                Addr4* addr = &addrs4[protocol % addrs4N];
+                // TODO: FIXME: HANDLE PREFIX LEN
+                struct sockaddr_in sockAddr = { .sin_family = AF_INET, .sin_port = 0, .sin_addr = { .s_addr = addr->prefix } };
+                // O sock_setsockopt usa isso
+                //   sock_bindtoindex_locked(()
+                // que aí dá nisso
+                if (addr->flags & ADDR_FLAGS_SCOPE_LINK)
+                    sock->sk->sk_bound_dev_if = addr->itfc;
+                //if (sk->sk_prot->rehash)
+                    //sk->sk_prot->rehash(sk);
+                // TODO: FIXME: HANDLE FAILURE HERE
+                igw_release();
+                dbg("BOUND IPV4 SOCKET TO FAMILY %d %u.%u.%u.%u\n", sockAddr.sin_family, FMTIPV4(sockAddr.sin_addr.s_addr));
+                (void)inet_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
+            } else
+                igw_release();
+        } elif (addrs6N) {
             Addr6* addr = &addrs6[protocol % addrs6N];
             struct sockaddr_in6 sockAddr = { .sin6_family = AF_INET6, .sin6_port = 0, .sin6_flowinfo = 0, .sin6_scope_id = 0 };
             // GERA UM ALEATÓRIO
@@ -251,14 +269,13 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
             // INSERE O PREFIXO
             igw_prefixize6(sockAddr.sin6_addr.in6_u.u6_addr8, addr->prefix, addr->prefixLen);
             if (addr->flags & ADDR_FLAGS_SCOPE_LINK)
-                sk->sk_bound_dev_if = addr->itfc;
+                sock->sk->sk_bound_dev_if = addr->itfc;
             igw_release();
-#if 0
-            printk("BOUND IPV6 SOCKET TO FAMILY %d %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X\n",
+            dbg("BOUND IPV6 SOCKET TO FAMILY %d %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X\n",
                 sockAddr.sin6_family, FMTIPV6(sockAddr.sin6_addr.in6_u.u6_addr8));
-#endif
             (void)inet6_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
-        }
+        } else
+            igw_release();
     }
 
     return ret;
