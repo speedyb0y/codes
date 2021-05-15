@@ -432,7 +432,7 @@ int main (int argsN, char** args) {
 
                                 // PÕE O ENDEREÕ NOVO
                                 char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(addr, ip);
-                                IP6("addr add scope link nodad dev %s %s/128", link->itfc, ip);
+                                IP6("addr add nodad dev %s %s/128", link->itfc, ip);
                             }
 
                             IP6("route flush cache");
