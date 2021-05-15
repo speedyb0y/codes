@@ -408,14 +408,7 @@ int main (int argsN, char** args) {
                                 prefixFlags, prefixValidLT, prefixPreferredLT, linkID, link->itfc, linkPrefixStr
                                 );
 
-                            //if (link->prefixLen)
-                                //IP6("rule del priority %u table %u", ruleFrom, link->table);
-
                             for (uint i = 0; i != link->addrsN; i++) {
-
-                                // REMOVE A ROTA ATUAL
-                                // SEMPRE TEM UM LÁ - NO COMEÇO É UM BLACKHOLE
-                                //IP6("route del table %u default", link->table + i);
 
                                 u8* const addr = link->addrs + i*IPV6_ADDR_SIZE;
 
@@ -430,9 +423,13 @@ int main (int argsN, char** args) {
                                 ip6_random_gen(addr);
                                 ip6_prefix(addr, prefix, prefixLen);
 
-                                // PÕE O ENDEREÕ NOVO
+                                // PÕE O ENDEREÇO NOVO
                                 char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(addr, ip);
-                                IP6("addr add nodad dev %s %s/128", link->itfc, ip);
+
+                                if (link->itfc == link->itfcOut)
+                                    IP6("addr add nodad dev %s %s/128 metric %u", link->itfc, ip, 1U + linkID); // TODO: FIXME: VAI TER QUE ESPECIFICAR O METRIC
+                                else
+                                    IP6("addr add nodad dev %s %s/128", link->itfc, ip);
                             }
 
                             IP6("route flush cache");
@@ -441,10 +438,6 @@ int main (int argsN, char** args) {
 
                             // PASSA A USAR ELE
                             memcpy(link->prefix, prefix, IPV6_ADDR_SIZE); link->prefixLen = prefixLen;
-
-                            // JÁ SELECIONOU O SOURCE, ENTÃO BASTA JOGAR NA PRIMEIRA TABELA E ASSIM TER UM RULE SÓ
-                            // for i != itfc->addrsN
-                            //IP6("route add metric %u from %s default", link->metric + i, prefixStr);
 
                             printf("   -- DONE\n\n");
                         }
@@ -466,10 +459,8 @@ int main (int argsN, char** args) {
         printf("CLEANING LINK #%u ITFC %s\n", linkID, link->itfc);
 
         if (link->prefixLen) {
-            //IP6("rule del priority %u table %u", ruleFrom, link->table);
             for (uint i = 0; i != link->addrsN; i++) {
                 char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(link->addrs + i*IPV6_ADDR_SIZE, ip);
-                //IP6("route replace metric %u blackhole default", link->metric + i);
                 IP6("addr del dev %s %s/128", link->itfc, ip);
             }
         }
