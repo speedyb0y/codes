@@ -105,6 +105,11 @@ struct Addr6 {
 #define ADDRS4_N 512
 #define ADDRS6_N 64
 
+#define BASE 1000
+
+#define ADDR4_RANDOM (BASE + ADDRS4_N)
+#define ADDR6_RANDOM (BASE + ADDRS6_N)
+
 #define ITFC_INDEX_INVALID 0xFFFFF
 
 static uint addrs4N;
@@ -166,7 +171,7 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
         if (addr4->addr == NULL) {
             addr4->addr      = addr;
             addr4->until     = addr->ifa_preferred_lft; // Expiry is at tstamp + HZ * lft
-            addr4->itfc      = addr->ifa_dev->dev->flags & IFF_LOOPBACK ? 0 : addr->ifa_dev->dev->ifindex;
+            addr4->itfc      = addr->ifa_dev->dev->ifindex;
             addr4->prefixLen = addr->ifa_prefixlen;// PODERIA USAR O ifa_mask, CONTANDO OS BITS
             addr4->prefix    = addr->ifa_address;
         }
@@ -189,7 +194,7 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
                 uint remaining = addrs6N;
                 while (remaining--) {
                     if (addr6->addr)
-                        addr6Last = addrs6;
+                        addr6Last = addr6;
                     addr6++;
                 }
                 addrs6N = addr6Last - addrs6;
@@ -214,7 +219,7 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
                 uint remaining = addrs4N;
                 while (remaining--) {
                     if (addr4->addr)
-                        addr4Last = addrs4;
+                        addr4Last = addr4;
                     addr4++;
                 }
                 addrs4N = addr4Last - addrs4;
@@ -234,11 +239,6 @@ static void igw_prefixize6 (u8* ip, const u8* prefix, uint prefixLen) {
         prefixLen -= amount;
     }
 }
-
-#define BASE 1000
-
-#define ADDR4_RANDOM (BASE + ADDRS4_N)
-#define ADDR6_RANDOM (BASE + ADDRS6_N)
 
 static int igw_sock_create4 (uint i, struct socket **res) {
 
@@ -273,8 +273,7 @@ static int igw_sock_create4 (uint i, struct socket **res) {
             // O sock_setsockopt usa isso
             //   sock_bindtoindex_locked(()
             // que aí dá nisso
-            if (addr->itfc)
-                sock->sk->sk_bound_dev_if = addr->itfc;
+            sock->sk->sk_bound_dev_if = addr->itfc;
             //if (sk->sk_prot->rehash)
                 //sk->sk_prot->rehash(sk);
 
@@ -387,28 +386,11 @@ static int igw_itfcs_notify (notifier_block *nb, unsigned long action, void *dat
 
     dev = netdev_notifier_info_to_dev(data);
 
-    printk("IGW: DEVICE %s INDEX %d ACTION %s FLAGS 0x%08X OP STATE 0x%X\n", dev->name, dev->ifindex, netdev_cmd_to_name(action), dev->flags, (unsigned)dev->operstate);
+    printk("IGW: DEVICE %s INDEX %d ACTION %s FLAGS 0x%08X OP STATE 0x%X\n",
+        dev->name, dev->ifindex, netdev_cmd_to_name(action), dev->flags, (unsigned)dev->operstate);
 
-    // O PROBLEMA DE COLOCAR O ENDEREÇO NA INTERFACE LO É QUE PERDEMOS A CAPACIDADE DE MONITORAR SE ELA ESTÁ UP/DOWN :S
-    // USAR O LABEL PARA INDICAR ITNERFACE DE ENTRADA | INTERFACE DE SAÍDA
-    // 'eth0:openvpn-200'
-
-    // EM CASO DE UMA DAS INTERFACES IN/OUT SAIR, DESMARCAR ALI
-    //
-    //   para deletar:
-    //          limpa todos os membros da estrutura
-    //   quando ficar offline:
-    //          só marca/desmarca alguma coisa  -> flags: LINK_IN_UP | LINK_OUT_UP
-    // usar um bitarray para saber quais endereços estão disponíveis
-    //    ecada  interface tera seu bitarray para saber quais endereços ela tem
-    //      estrutura Addr4:
-    //             u16 next; para navegar entre as listas
-    //             u16 prev;  proximo endereço de cada interface
-    //      ter uma array itfcs[ITFCS_N]
-    //          bitarray[] endereços4
-    //          bitarray[] endereços6
-    if ( (dev->flags & IFF_LOOPBACK) ||
-        ((action == NETDEV_CHANGE || action == NETDEV_UP) && (dev->flags & IFF_UP) && (dev->operstate == IF_OPER_UP))) {
+    // INTERFACE LOOPBACK NUNCA TEM EVENTO DOWN/UNREGISTER
+    if ((dev->flags & IFF_LOOPBACK) || ((action == NETDEV_CHANGE || action == NETDEV_UP) && (dev->flags & IFF_UP) && (dev->operstate == IF_OPER_UP))) {
         addr4 = rtnl_dereference(dev->ip_ptr->ifa_list);
         while (addr4) {
             igw_addrs4_add((struct in_ifaddr*)addr4);
