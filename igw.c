@@ -111,8 +111,8 @@ struct Addr6 {
 
 static uint lo;
 
-static uint addrs4Last;
-static uint addrs6Last;
+static uint addrs4N;
+static uint addrs6N;
 
 static struct Addr4 addrs4[ADDRS4_N];
 static struct Addr6 addrs6[ADDRS6_N];
@@ -140,24 +140,16 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
         addr->idev &&
         addr->idev->dev) {
 
-        const uint i = addr->rt_priority - 1;
+        if (addrs6N < addr->rt_priority)
+            addrs6N = addr->rt_priority;
 
-        if (addrs6Last < i)
-            addrs6Last = i;
-
-        Addr6* const addr6 = &addrs6[i];
+        Addr6* const addr6 = &addrs6[addr->rt_priority - 1];
 
         addr6->addr      = addr;
         addr6->until     = addr->prefered_lft;
         addr6->itfc      = addr->idev->dev->ifindex != lo ? addr->idev->dev->ifindex : 0;
         addr6->prefixLen = addr->prefix_len;
         memcpy(addr6->prefix, addr->addr.in6_u.u6_addr8, 16);
-
-        printk("IGW: ADDR6 ADD #%u ITFC %u %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", i,
-                addr6->itfc, addr->idev->dev->name,
-        FMTIPV6(addr6->prefix),
-                addr6->prefixLen
-            );
     }
 }
 
@@ -166,46 +158,41 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
     if (addr->ifa_rt_priority &&
         addr->ifa_rt_priority <= ADDRS4_N &&
         addr->idev &&
-        addr->idev->dev) {  // PODERIA USAR O ifa_mask, CONTANDO OS BITS
+        addr->idev->dev) {
 
-        const uint i = addr->ifa_rt_priority - 1;
+        if (addrs4N < addr->ifa_rt_priority)
+            addrs4N = addr->ifa_rt_priority;
 
-        if (addrs4Last < i)
-            addrs4Last = i;
-
-        Addr4* const addr4 = &addrs4[i];
+        Addr4* const addr4 = &addrs4[addr->ifa_rt_priority - 1];
 
         addr4->addr      = addr;
         addr4->until     = addr->ifa_preferred_lft; // Expiry is at tstamp + HZ * lft
         addr4->itfc      = addr->ifa_dev->dev->ifindex != lo ? addr->ifa_dev->dev->ifindex : 0;
-        addr4->prefixLen = addr->ifa_prefixlen;
+        addr4->prefixLen = addr->ifa_prefixlen;// PODERIA USAR O ifa_mask, CONTANDO OS BITS
         addr4->prefix    = addr->ifa_address;
-
         // ifa_valid_lft
         //unsigned long     ifa_tstamp; /* updated timestamp */
-        printk("IGW: ADDR4 ADD #%u ITFC %u %s %u.%u.%u.%u/%u\n", i,
-            addr4->itfc, addr->ifa_dev->dev->name,
-    FMTIPV4(addr4->prefix),
-            addr4->prefixLen
-            );
     }
 }
 
 static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
     if (addr->ifa_rt_priority &&
-        addr->ifa_rt_priority <= ADDRS4_N) {
+        addr->ifa_rt_priority <= ADDRS6_N) {
 
-        const uint i = addr->ifa_rt_priority - 1;
-
-        Addr6* const addr6 = &addrs6[i];
+        Addr6* const addr6 = &addrs6[addr->ifa_rt_priority - 1];
 
         if (addr6->addr == addr) {
-            printk("IGW: ADDR6 DEL #%u %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", i,
-                addr6->itfc, addr->idev->dev->name,
-        FMTIPV6(addr6->prefix),
-                addr6->prefixLen);
             addr6->addr = 0;
+
+            if (addrs6N == &addrs6[addr->ifa_rt_priority]) {
+                uint last = 0; uint lastSet = 0;
+                do {
+                    if (addrs6[last].addr)
+                        lastSet = last;
+                } while (++last != ADDRS6_N);
+                addrs6N = last;
+            }
         }
     }
 }
@@ -215,24 +202,18 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
     if (addr->ifa_rt_priority &&
         addr->ifa_rt_priority <= ADDRS4_N) {
 
-        const uint i = addr->ifa_rt_priority - 1;
-
-        Addr4* const addr4 = &addrs4[i];
+        Addr4* const addr4 = &addrs4[addr->ifa_rt_priority - 1];
 
         if (addr4->addr == addr) {
-            printk("IGW: ADDR4 DEL %s %u.%u.%u.%u/%u METRIC %u\n", i,
-                addr4->itfc, addr->idev->dev->name,
-        FMTIPV4(addr4->prefix),
-                addr4->prefixLen);
             addr4->addr = 0;
 
-            if (addrs4Last == i) { // TODO: USAR UMA ESPÉCIE DE LINKED LIST
+            if (addrs4N == &addrs4[addr->ifa_rt_priority]) { // TODO: USAR UMA ESPÉCIE DE LINKED LIST
                 uint last = 0; uint lastSet = 0;
                 do {
                     if (addrs4[last].addr)
                         lastSet = last;
                 } while (++last != ADDRS4_N);
-                addrs4Last = last;
+                addrs4N = last;
             }
         }
     }
@@ -393,8 +374,8 @@ static int igw_init (void) {
     //
     lo = ITFC_INDEX_INVALID;
 
-    addrs4Last = 0; memset(addrs6, 0, sizeof(addrs6));
-    addrs6Last = 0; memset(addrs4, 0, sizeof(addrs4));
+    addrs4N = 0; memset(addrs6, 0, sizeof(addrs6));
+    addrs6N = 0; memset(addrs4, 0, sizeof(addrs4));
 
     igw_acquire();
     igw_release();
