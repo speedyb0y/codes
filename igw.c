@@ -331,14 +331,16 @@ static int igw_sock_create6 (int family, int type, uint i, struct socket **res) 
         } else
             igw_release();
     }
+
+    return ret;
 }
 
 static int igw_sock_create (int family, int type, int protocol, struct socket **res) {
 
     return (
-        (protocol < BASE) ?     sock_create_REAL :
-        (protocol == AF_INET) ? igw_sock_create4 :
-                                igw_sock_create6
+        (protocol < BASE) ?     (int (*) (int, int, uint, struct socket **))sock_create_REAL :
+        (protocol == AF_INET) ? (int (*) (int, int, uint, struct socket **))igw_sock_create4 :
+                                (int (*) (int, int, uint, struct socket **))igw_sock_create6
         ) (family, type, protocol, res);
 }
 
