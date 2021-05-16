@@ -83,8 +83,6 @@ extern int (*sock_create_USE) (int family, int type, int protocol, struct socket
 #define FMTIPV4(addr) ((addr) & 0xFF), (((addr) >> 8) & 0xFF), (((addr) >> 16) & 0xFF), (((addr) >> 24) & 0xFF)
 #endif
 
-#define dbg(...) ({ })
-
 typedef struct Addr4 Addr4;
 typedef struct Addr6 Addr6;
 
@@ -170,8 +168,6 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
         addr4->itfc      = addr->ifa_dev->dev->ifindex != lo ? addr->ifa_dev->dev->ifindex : 0;
         addr4->prefixLen = addr->ifa_prefixlen;// PODERIA USAR O ifa_mask, CONTANDO OS BITS
         addr4->prefix    = addr->ifa_address;
-        // ifa_valid_lft
-        //unsigned long     ifa_tstamp; /* updated timestamp */
     }
 }
 
@@ -260,7 +256,6 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
                     //sk->sk_prot->rehash(sk);
                 // TODO: FIXME: HANDLE FAILURE HERE
                 igw_release();
-                dbg("BOUND IPV4 SOCKET TO FAMILY %d %u.%u.%u.%u\n", sockAddr.sin_family, FMTIPV4(sockAddr.sin_addr.s_addr));
                 (void)inet_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
             } else
                 igw_release();
@@ -275,8 +270,6 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
             if (addr->itfc)
                 sock->sk->sk_bound_dev_if = addr->itfc;
             igw_release();
-            dbg("BOUND IPV6 SOCKET TO FAMILY %d %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X\n",
-                sockAddr.sin6_family, FMTIPV6(sockAddr.sin6_addr.in6_u.u6_addr8));
             (void)inet6_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
         } else
             igw_release();
