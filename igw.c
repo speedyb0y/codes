@@ -157,8 +157,8 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
     if (addr->ifa_rt_priority &&
         addr->ifa_rt_priority <= ADDRS4_N &&
-        addr->idev &&
-        addr->idev->dev) {
+        addr->ifa_dev &&
+        addr->ifa_dev->dev) {
 
         if (addrs4N < addr->ifa_rt_priority)
             addrs4N = addr->ifa_rt_priority;
@@ -177,15 +177,15 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
 static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
-    if (addr->ifa_rt_priority &&
-        addr->ifa_rt_priority <= ADDRS6_N) {
+    if (addr->rt_priority &&
+        addr->rt_priority <= ADDRS6_N) {
 
-        Addr6* const addr6 = &addrs6[addr->ifa_rt_priority - 1];
+        Addr6* const addr6 = &addrs6[addr->rt_priority - 1];
 
         if (addr6->addr == addr) {
             addr6->addr = 0;
 
-            if (addrs6N == addr->ifa_rt_priority) {
+            if (addrs6N == addr->rt_priority) {
                 Addr6* addr6 = addrs6;
                 Addr6* addr6Last = addrs6;
                 uint remaining = addrs6N;
@@ -254,7 +254,8 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
                 // O sock_setsockopt usa isso
                 //   sock_bindtoindex_locked(()
                 // que aí dá nisso
-                sock->sk->sk_bound_dev_if = addr->itfc;
+                if (addr->itfc)
+                    sock->sk->sk_bound_dev_if = addr->itfc;
                 //if (sk->sk_prot->rehash)
                     //sk->sk_prot->rehash(sk);
                 // TODO: FIXME: HANDLE FAILURE HERE
