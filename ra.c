@@ -425,11 +425,9 @@ int main (int argsN, char** args) {
 
                                 // PÕE O ENDEREÇO NOVO
                                 char ip[IPV6_ADDR_STR_SIZE]; ip6_to_str(addr, ip);
-
-                                if (link->itfc == link->itfcOut)
-                                    IP6("addr add nodad dev %s %s/128 metric %u", link->itfc, ip, 1U + linkID); // TODO: FIXME: VAI TER QUE ESPECIFICAR O METRIC
-                                else
-                                    IP6("addr add nodad dev %s %s/128", link->itfc, ip);
+                                // TODO: FIXME: VAI TER QUE ESPECIFICAR O METRIC
+                                IP6("addr add nodad dev %s %s/128 metric %u label %s:%s",
+                                    link->itfc, ip, 1U + linkID, link->itfc, link->itfcOut);
                             }
 
                             IP6("route flush cache");
