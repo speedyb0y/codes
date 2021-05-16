@@ -179,7 +179,7 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
         Addr6* const addr6 = &addrs6[addr->rt_priority - 1];
 
         if (addr6->addr == addr) {
-            addr6->addr = 0;
+            addr6->addr = NULL;
 
             if (addrs6N == addr->rt_priority) {
                 Addr6* addr6 = addrs6;
@@ -204,7 +204,7 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
         Addr4* const addr4 = &addrs4[addr->ifa_rt_priority - 1];
 
         if (addr4->addr == addr) {
-            addr4->addr = 0;
+            addr4->addr = NULL;
 
             if (addrs4N == addr->ifa_rt_priority) { // TODO: USAR UMA ESPÉCIE DE LINKED LIST
                 Addr4* addr4 = addrs4;
@@ -233,18 +233,45 @@ static void igw_prefixize6 (u8* ip, const u8* prefix, uint prefixLen) {
     }
 }
 
+#define BASE 1000
+#define ADDR4_RANDOM (BASE + ADDRS4_N)
+#define ADDR6_RANDOM (BASE + ADDRS6_N)
+
 static int igw_sock_create (int family, int type, int protocol, struct socket **res) {
 
-    const int ret = sock_create_REAL(family, type, (protocol < IPPROTO_MAX) ? protocol : 0, res);
+    if (protocol < BASE)
+        return sock_create_REAL(family, type, protocol, res);
+
+    uint i = protocol;
+
+    if (family == AF_INET) {
+        if ((i -= BASE) >= ADDRS4_N) {
+            uint count = addrs4N;
+            while (count--) {
+                if (addrs4[i %= addrs4N].addr)
+                    break;
+                i++;
+            }
+        }
+        if (!(i < addrs4N && addrs4[i].addr))
+            return -EINVAL;
+    } else {
+        if ((i -= BASE) >= ADDRS6_N)
+            i %= addrs6N;
+        if (!(i < addrs6N && addrs6[i].addr))
+            return -EINVAL;
+    }
+
+    const int ret = sock_create_REAL(family, type, 0, res);
 
     // TODO: FIXME: O CERTO SERIA CONSIDERAR family, POIS O protocol É DENTRO DO DOMÍNIO DELE
     // MAS ASSUMINDO QUE NENHUM OUTRO DOMÍNIO TEM PROTOCOLOS >= QUE O DO IP
-    if (ret >= 0 && protocol >= IPPROTO_MAX) {
+    if (ret >= 0) {
         struct socket* sock = *res;
         igw_acquire();
         if (family == AF_INET) {
             if (addrs4N) {
-                Addr4* addr = &addrs4[protocol % addrs4N];
+                Addr4* addr = &addrs4[i];
                 // TODO: FIXME: HANDLE PREFIX LEN
                 struct sockaddr_in sockAddr = { .sin_family = AF_INET, .sin_port = 0, .sin_addr = { .s_addr = addr->prefix } };
                 // O sock_setsockopt usa isso
@@ -260,11 +287,11 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
             } else
                 igw_release();
         } elif (addrs6N) {
-            Addr6* addr = &addrs6[protocol % addrs6N];
+            Addr6* addr = &addrs6[i % addrs6N];
             struct sockaddr_in6 sockAddr = { .sin6_family = AF_INET6, .sin6_port = 0, .sin6_flowinfo = 0, .sin6_scope_id = 0 };
             // GERA UM ALEATÓRIO
-            ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[0] = rdtsc();
-            ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[1] = rdtsc() + protocol; // (+ jiffies) << 32
+            ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[0] = rdtsc() + jiffies;
+            ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[1] = rdtsc() + i;
             // INSERE O PREFIXO
             igw_prefixize6(sockAddr.sin6_addr.in6_u.u6_addr8, addr->prefix, addr->prefixLen);
             if (addr->itfc)
