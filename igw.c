@@ -142,10 +142,10 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
         const uint i = addr->rt_priority - 1;
 
-        Addr6* const addr6 = &addrs6[i];
-
         if (addrs6Last < i)
             addrs6Last = i;
+
+        Addr6* const addr6 = &addrs6[i];
 
         addr6->addr      = (u64)addr;
         addr6->until     = addr->prefered_lft;
@@ -172,10 +172,10 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
         const uint i = addr->ifa_rt_priority - 1;
 
-        Addr4* const addr4 = &addrs4[i];
-
         if (addrs4Last < i)
             addrs4Last = i;
+
+        Addr4* const addr4 = &addrs4[i];
 
         addr4->addr      = (u64)addr;
         addr4->until     = addr->ifa_preferred_lft; // Expiry is at tstamp + HZ * lft
