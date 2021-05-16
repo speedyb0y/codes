@@ -107,8 +107,6 @@ struct Addr6 {
 
 #define ITFC_INDEX_INVALID 0xFFFFF
 
-static uint lo;
-
 static uint addrs4N;
 static uint addrs6N;
 
@@ -143,11 +141,13 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
         Addr6* const addr6 = &addrs6[addr->rt_priority - 1];
 
-        addr6->addr      = addr;
-        addr6->until     = addr->prefered_lft;
-        addr6->itfc      = addr->idev->dev->ifindex != lo ? addr->idev->dev->ifindex : 0;
-        addr6->prefixLen = addr->prefix_len;
-        memcpy(addr6->prefix, addr->addr.in6_u.u6_addr8, 16);
+        if (addr6->addr == NULL) {
+            addr6->addr      = addr;
+            addr6->until     = addr->prefered_lft;
+            addr6->itfc      = addr->idev->dev->flags & IFF_LOOPBACK ? 0 : addr->idev->dev->ifindex;
+            addr6->prefixLen = addr->prefix_len;
+            memcpy(addr6->prefix, addr->addr.in6_u.u6_addr8, 16);
+        }
     }
 }
 
@@ -163,11 +163,13 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
         Addr4* const addr4 = &addrs4[addr->ifa_rt_priority - 1];
 
-        addr4->addr      = addr;
-        addr4->until     = addr->ifa_preferred_lft; // Expiry is at tstamp + HZ * lft
-        addr4->itfc      = addr->ifa_dev->dev->ifindex != lo ? addr->ifa_dev->dev->ifindex : 0;
-        addr4->prefixLen = addr->ifa_prefixlen;// PODERIA USAR O ifa_mask, CONTANDO OS BITS
-        addr4->prefix    = addr->ifa_address;
+        if (addr4->addr == NULL) {
+            addr4->addr      = addr;
+            addr4->until     = addr->ifa_preferred_lft; // Expiry is at tstamp + HZ * lft
+            addr4->itfc      = addr->ifa_dev->dev->flags & IFF_LOOPBACK ? 0 : addr->ifa_dev->dev->ifindex;
+            addr4->prefixLen = addr->ifa_prefixlen;// PODERIA USAR O ifa_mask, CONTANDO OS BITS
+            addr4->prefix    = addr->ifa_address;
+        }
     }
 }
 
@@ -340,7 +342,7 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
     if (protocol < BASE)
         return sock_create_REAL(family, type, protocol, res);
 
-    if (protocol == AF_INET)
+    if (family == AF_INET)
         return igw_sock_create4(protocol, res);
 
     return igw_sock_create6(protocol, res);
@@ -387,27 +389,24 @@ static int igw_itfcs_notify (notifier_block *nb, unsigned long action, void *dat
 
     printk("IGW: DEVICE %s INDEX %d ACTION %s FLAGS 0x%08X OP STATE 0x%X\n", dev->name, dev->ifindex, netdev_cmd_to_name(action), dev->flags, (unsigned)dev->operstate);
 
-    // TODO: VERIFICAR SE É LOOPBACK PELA FLAG
-    if (dev->ifindex != lo) {
-        if (!strcmp(dev->name, "lo"))
-            lo = dev->ifindex;
-        elif ((action == NETDEV_CHANGE || action == NETDEV_UP) && (dev->flags & IFF_UP) && (dev->operstate == IF_OPER_UP)) {
-            addr4 = rtnl_dereference(dev->ip_ptr->ifa_list);
-            while (addr4) {
-                igw_addrs4_add((struct in_ifaddr*)addr4);
-                addr4 = rtnl_dereference(addr4->ifa_next);
-            }
-            list_for_each_entry(addr6, &dev->ip6_ptr->addr_list, if_list)
-                igw_addrs6_add((struct inet6_ifaddr*)addr6);
-        } else {
-            addr4 = rtnl_dereference(dev->ip_ptr->ifa_list);
-            while (addr4) {
-                igw_addrs4_del((struct in_ifaddr*)addr4);
-                addr4 = rtnl_dereference(addr4->ifa_next);
-            }
-            list_for_each_entry(addr6, &dev->ip6_ptr->addr_list, if_list)
-                igw_addrs6_del((struct inet6_ifaddr*)addr6);
+    // O PROBLEMA DE COLOCAR O ENDEREÇO NA INTERFACE LO É QUE PERDEMOS A CAPACIDADE DE MONITORAR SE ELA ESTÁ UP/DOWN :S
+    if ( (dev->flags & IFF_LOOPBACK) ||
+        ((action == NETDEV_CHANGE || action == NETDEV_UP) && (dev->flags & IFF_UP) && (dev->operstate == IF_OPER_UP))) {
+        addr4 = rtnl_dereference(dev->ip_ptr->ifa_list);
+        while (addr4) {
+            igw_addrs4_add((struct in_ifaddr*)addr4);
+            addr4 = rtnl_dereference(addr4->ifa_next);
         }
+        list_for_each_entry(addr6, &dev->ip6_ptr->addr_list, if_list)
+            igw_addrs6_add((struct inet6_ifaddr*)addr6);
+    } else {
+        addr4 = rtnl_dereference(dev->ip_ptr->ifa_list);
+        while (addr4) {
+            igw_addrs4_del((struct in_ifaddr*)addr4);
+            addr4 = rtnl_dereference(addr4->ifa_next);
+        }
+        list_for_each_entry(addr6, &dev->ip6_ptr->addr_list, if_list)
+            igw_addrs6_del((struct inet6_ifaddr*)addr6);
     }
 
     igw_release();
@@ -438,9 +437,6 @@ static int igw_init (void) {
     printk("IGW: LOADING...\n");
 
     lock = 0;
-
-    //
-    lo = ITFC_INDEX_INVALID;
 
     addrs4N = 0; memset(addrs6, 0, sizeof(addrs6));
     addrs6N = 0; memset(addrs4, 0, sizeof(addrs4));
