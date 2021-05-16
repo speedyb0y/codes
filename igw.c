@@ -390,6 +390,23 @@ static int igw_itfcs_notify (notifier_block *nb, unsigned long action, void *dat
     printk("IGW: DEVICE %s INDEX %d ACTION %s FLAGS 0x%08X OP STATE 0x%X\n", dev->name, dev->ifindex, netdev_cmd_to_name(action), dev->flags, (unsigned)dev->operstate);
 
     // O PROBLEMA DE COLOCAR O ENDEREÇO NA INTERFACE LO É QUE PERDEMOS A CAPACIDADE DE MONITORAR SE ELA ESTÁ UP/DOWN :S
+    // USAR O LABEL PARA INDICAR ITNERFACE DE ENTRADA | INTERFACE DE SAÍDA
+    // 'eth0:openvpn-200'
+
+    // EM CASO DE UMA DAS INTERFACES IN/OUT SAIR, DESMARCAR ALI
+    //
+    //   para deletar:
+    //          limpa todos os membros da estrutura
+    //   quando ficar offline:
+    //          só marca/desmarca alguma coisa  -> flags: LINK_IN_UP | LINK_OUT_UP
+    // usar um bitarray para saber quais endereços estão disponíveis
+    //    ecada  interface tera seu bitarray para saber quais endereços ela tem
+    //      estrutura Addr4:
+    //             u16 next; para navegar entre as listas
+    //             u16 prev;  proximo endereço de cada interface
+    //      ter uma array itfcs[ITFCS_N]
+    //          bitarray[] endereços4
+    //          bitarray[] endereços6
     if ( (dev->flags & IFF_LOOPBACK) ||
         ((action == NETDEV_CHANGE || action == NETDEV_UP) && (dev->flags & IFF_UP) && (dev->operstate == IF_OPER_UP))) {
         addr4 = rtnl_dereference(dev->ip_ptr->ifa_list);
