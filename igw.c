@@ -89,7 +89,7 @@ typedef struct Addr4 Addr4;
 typedef struct Addr6 Addr6;
 
 struct Addr4 {
-    u64 addr;
+    struct in_ifaddr* addr;
     u64 until;
     u16 itfc;
     u16 prefixLen;
@@ -97,7 +97,7 @@ struct Addr4 {
 };
 
 struct Addr6 {
-    u64 addr;
+    struct inet6_ifaddr* addr;
     u64 until;
     u16 itfc;
     u16 prefixLen;
@@ -147,9 +147,9 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
         Addr6* const addr6 = &addrs6[i];
 
-        addr6->addr      = (u64)addr;
+        addr6->addr      = addr;
         addr6->until     = addr->prefered_lft;
-        addr6->itfc      = addr->ifindex == lo ? 0 : addr->idev->dev->ifindex;
+        addr6->itfc      = addr->idev->dev->ifindex != lo ? addr->idev->dev->ifindex : 0;
         addr6->prefixLen = addr->prefix_len;
         memcpy(addr6->prefix, addr->addr.in6_u.u6_addr8, 16);
 
@@ -177,15 +177,15 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
         Addr4* const addr4 = &addrs4[i];
 
-        addr4->addr      = (u64)addr;
+        addr4->addr      = addr;
         addr4->until     = addr->ifa_preferred_lft; // Expiry is at tstamp + HZ * lft
-        addr4->itfc      = addr->ifindex == lo ? 0 : addr->idev->dev->ifindex;
+        addr4->itfc      = addr->ifa_dev->dev->ifindex != lo ? addr->ifa_dev->dev->ifindex : 0;
         addr4->prefixLen = addr->ifa_prefixlen;
         addr4->prefix    = addr->ifa_address;
 
         // ifa_valid_lft
         //unsigned long     ifa_tstamp; /* updated timestamp */
-        printk("IGW: ADDR4 ADD %s %u.%u.%u.%u/%u\n", i,
+        printk("IGW: ADDR4 ADD #%u ITFC %u %s %u.%u.%u.%u/%u\n", i,
             addr4->itfc, addr->ifa_dev->dev->name,
     FMTIPV4(addr4->prefix),
             addr4->prefixLen
@@ -197,33 +197,39 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
 static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
-    uint i = 0;
+    if (addr->ifa_rt_priority &&
+        addr->ifa_rt_priority <= IPV4_ADDRS_N) {
 
-    while (i != addrs6N) {
-        if (addrs6[i].addr == (u64)addr) {
-            printk("IGW: ADDR6 DEL %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u METRIC %u\n",
-                addr->idev->dev->name, FMTIPV6(addrs6[i].prefix), addrs6[i].prefixLen, addrs6[i].metric);
-            if (i != --addrs6N)
-                memcpy(&addrs6[i], &addrs6[addrs6N], sizeof(Addr6));
-            break;
-        } else
-            i++;
+        const uint i = addr->ifa_rt_priority - 1;
+
+        Addr6* const addr6 = &addrs6[i];
+
+        if (addr6->addr == addr) {
+            printk("IGW: ADDR6 DEL #%u %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", i,
+                addr6->itfc, addr->idev->dev->name,
+        FMTIPV6(addr6->prefix),
+                addr6->prefixLen);
+            addr6->addr = 0;
+        }
     }
 }
 
 static void igw_addrs4_del (const struct in_ifaddr* const addr) {
 
-    uint i = 0;
+    if (addr->ifa_rt_priority &&
+        addr->ifa_rt_priority <= IPV4_ADDRS_N) {
 
-    while (i != addrs4N) {
-        if (addrs4[i].addr == (u64)addr) {
-            printk("IGW: ADDR4 DEL %s %u.%u.%u.%u/%u METRIC %u\n",
-                addr->ifa_dev->dev->name, FMTIPV4(addrs4[i].prefix), addrs4[i].prefixLen, addrs4[i].metric);
-            if (i != --addrs4N)
-                memcpy(&addrs4[i], &addrs4[addrs4N], sizeof(Addr4));
-            break;
-        } else
-            i++;
+        const uint i = addr->ifa_rt_priority - 1;
+
+        Addr4* const addr4 = &addrs4[i];
+
+        if (addr4->addr == addr) {
+            printk("IGW: ADDR4 DEL %s %u.%u.%u.%u/%u METRIC %u\n", i,
+                addr4->itfc, addr->idev->dev->name,
+        FMTIPV4(addr4->prefix),
+                addr4->prefixLen);
+            addr4->addr = 0;
+        }
     }
 }
 
