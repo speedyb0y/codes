@@ -104,8 +104,8 @@ struct Addr6 {
     u8 prefix[16];
 };
 
-#define IPV4_ADDRS_N 2048
-#define IPV6_ADDRS_N 512
+#define ADDRS4_N 512
+#define ADDRS6_N 64
 
 #define ITFC_INDEX_INVALID 0xFFFFF
 
@@ -114,8 +114,8 @@ static uint lo;
 static uint addrs4Last;
 static uint addrs6Last;
 
-static struct Addr4 addrs4[IPV4_ADDRS_N];
-static struct Addr6 addrs6[IPV6_ADDRS_N];
+static struct Addr4 addrs4[ADDRS4_N];
+static struct Addr6 addrs6[ADDRS6_N];
 
 static int lock;
 
@@ -136,7 +136,7 @@ static inline void igw_release (void) {
 static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
     if (addr->rt_priority &&
-        addr->rt_priority <= IPV6_ADDRS_N &&
+        addr->rt_priority <= ADDRS6_N &&
         addr->idev &&
         addr->idev->dev) {
 
@@ -158,15 +158,13 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
         FMTIPV6(addr6->prefix),
                 addr6->prefixLen
             );
-
-        addrs6N++;
     }
 }
 
 static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
     if (addr->ifa_rt_priority &&
-        addr->ifa_rt_priority <= IPV4_ADDRS_N &&
+        addr->ifa_rt_priority <= ADDRS4_N &&
         addr->idev &&
         addr->idev->dev) {  // PODERIA USAR O ifa_mask, CONTANDO OS BITS
 
@@ -190,15 +188,13 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
     FMTIPV4(addr4->prefix),
             addr4->prefixLen
             );
-
-        addrs4N++;
     }
 }
 
 static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
     if (addr->ifa_rt_priority &&
-        addr->ifa_rt_priority <= IPV4_ADDRS_N) {
+        addr->ifa_rt_priority <= ADDRS4_N) {
 
         const uint i = addr->ifa_rt_priority - 1;
 
@@ -217,7 +213,7 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 static void igw_addrs4_del (const struct in_ifaddr* const addr) {
 
     if (addr->ifa_rt_priority &&
-        addr->ifa_rt_priority <= IPV4_ADDRS_N) {
+        addr->ifa_rt_priority <= ADDRS4_N) {
 
         const uint i = addr->ifa_rt_priority - 1;
 
@@ -229,6 +225,15 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
         FMTIPV4(addr4->prefix),
                 addr4->prefixLen);
             addr4->addr = 0;
+
+            if (addrs4Last == i) { // TODO: USAR UMA ESPÉCIE DE LINKED LIST
+                uint last = 0; uint lastSet = 0;
+                do {
+                    if (addrs4[last].addr)
+                        lastSet = last;
+                } while (++last != ADDRS4_N);
+                addrs4Last = last;
+            }
         }
     }
 }
@@ -388,8 +393,8 @@ static int igw_init (void) {
     //
     lo = ITFC_INDEX_INVALID;
 
-    addrs4Last = 0;
-    addrs6Last = 0;
+    addrs4Last = 0; memset(addrs6, 0, sizeof(addrs6));
+    addrs6Last = 0; memset(addrs4, 0, sizeof(addrs4));
 
     igw_acquire();
     igw_release();
