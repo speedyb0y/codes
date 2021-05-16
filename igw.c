@@ -238,7 +238,7 @@ static void igw_prefixize6 (u8* ip, const u8* prefix, uint prefixLen) {
 #define ADDR4_RANDOM (BASE + ADDRS4_N)
 #define ADDR6_RANDOM (BASE + ADDRS6_N)
 
-static int igw_sock_create4 (int family, int type, uint i, struct socket **res) {
+static int igw_sock_create4 (uint i, struct socket **res) {
 
     if ((i -= BASE) >= ADDRS4_N) {
         uint count = addrs4N;
@@ -287,7 +287,7 @@ static int igw_sock_create4 (int family, int type, uint i, struct socket **res) 
     return ret;
 }
 
-static int igw_sock_create6 (int family, int type, uint i, struct socket **res) {
+static int igw_sock_create6 (uint i, struct socket **res) {
 
     if ((i -= BASE) >= ADDRS6_N) {
         uint count = addrs6N;
@@ -337,11 +337,13 @@ static int igw_sock_create6 (int family, int type, uint i, struct socket **res) 
 
 static int igw_sock_create (int family, int type, int protocol, struct socket **res) {
 
-    return (
-        (protocol < BASE) ?     (int (*) (int, int, uint, struct socket **))sock_create_REAL :
-        (protocol == AF_INET) ? (int (*) (int, int, uint, struct socket **))igw_sock_create4 :
-                                (int (*) (int, int, uint, struct socket **))igw_sock_create6
-        ) (family, type, protocol, res);
+    if (protocol < BASE)
+        return sock_create_REAL(family, type, protocol, res);
+
+    if (protocol == AF_INET)
+        return igw_sock_create4(protocol, res);
+
+    return igw_sock_create6(protocol, res);
 }
 
 // TODO: FIXME: E OS DEMAIS EVENTOS?
