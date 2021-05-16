@@ -91,7 +91,6 @@ typedef struct Addr6 Addr6;
 struct Addr4 {
     u64 addr;
     u64 until;
-    u32 metrc;
     u16 itfc;
     u16 prefixLen;
     u32 prefix;
@@ -100,7 +99,6 @@ struct Addr4 {
 struct Addr6 {
     u64 addr;
     u64 until;
-    u32 metric;
     u16 itfc;
     u16 prefixLen;
     u8 prefix[16];
@@ -113,8 +111,8 @@ struct Addr6 {
 
 static uint lo;
 
-static uint addrs4N;
-static uint addrs6N;
+static uint addrs4Last;
+static uint addrs6Last;
 
 static struct Addr4 addrs4[IPV4_ADDRS_N];
 static struct Addr6 addrs6[IPV6_ADDRS_N];
@@ -137,26 +135,28 @@ static inline void igw_release (void) {
 
 static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
-    if (addrs6N != IPV6_ADDRS_N && !(addr->addr.in6_u.u6_addr8[0] == 0xFE && addr->addr.in6_u.u6_addr8[1] == 0x80)) {
+    if (addr->rt_priority &&
+        addr->rt_priority <= IPV6_ADDRS_N &&
+        addr->idev &&
+        addr->idev->dev) {
 
-        Addr6* addr6 = addrs6; uint count = addrs6N;
+        const uint i = addr->rt_priority - 1;
 
-        while (count--)
-            if (addr6++->addr == (u64)addr)
-                return; // NUNCA ADICIONAR REPETIDOS
+        Addr6* const addr6 = &addrs6[i];
+
+        if (addrs6Last < i)
+            addrs6Last = i;
 
         addr6->addr      = (u64)addr;
         addr6->until     = addr->prefered_lft;
-        addr6->metric    = addr->rt_priority;
-        addr6->itfc      = addr->idev->dev->ifindex;
+        addr6->itfc      = addr->ifindex == lo ? 0 : addr->idev->dev->ifindex;
         addr6->prefixLen = addr->prefix_len;
         memcpy(addr6->prefix, addr->addr.in6_u.u6_addr8, 16);
 
-        printk("IGW: ADDR6 ADD %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u METRIC %u\n",
-            addr->idev->dev->name,
+        printk("IGW: ADDR6 ADD #%u ITFC %u %s %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n", i,
+                addr6->itfc, addr->idev->dev->name,
         FMTIPV6(addr6->prefix),
-                addr6->prefixLen,
-                addr6->metric
+                addr6->prefixLen
             );
 
         addrs6N++;
@@ -165,28 +165,30 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
 static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
-    if (addrs4N != IPV4_ADDRS_N) { // PODERIA USAR O ifa_mask, CONTANDO OS BITS
+    if (addr->ifa_rt_priority &&
+        addr->ifa_rt_priority <= IPV4_ADDRS_N &&
+        addr->idev &&
+        addr->idev->dev) {  // PODERIA USAR O ifa_mask, CONTANDO OS BITS
 
-        Addr4* addr4 = addrs4; uint count = addrs4N;
+        const uint i = addr->ifa_rt_priority - 1;
 
-        while (count--)
-            if (addr4++->addr == (u64)addr)
-                return;
+        Addr4* const addr4 = &addrs4[i];
+
+        if (addrs4Last < i)
+            addrs4Last = i;
 
         addr4->addr      = (u64)addr;
         addr4->until     = addr->ifa_preferred_lft; // Expiry is at tstamp + HZ * lft
-        addr4->metric    = addr->ifa_rt_priority;
-        addr4->itfc      = addr->ifa_dev->dev->ifindex;
+        addr4->itfc      = addr->ifindex == lo ? 0 : addr->idev->dev->ifindex;
         addr4->prefixLen = addr->ifa_prefixlen;
         addr4->prefix    = addr->ifa_address;
 
         // ifa_valid_lft
         //unsigned long     ifa_tstamp; /* updated timestamp */
-        printk("IGW: ADDR4 ADD %s %u.%u.%u.%u/%u METRIC %u\n",
-            addr->ifa_dev->dev->name,
+        printk("IGW: ADDR4 ADD %s %u.%u.%u.%u/%u\n", i,
+            addr4->itfc, addr->ifa_dev->dev->name,
     FMTIPV4(addr4->prefix),
-            addr4->prefixLen,
-            addr4->metric
+            addr4->prefixLen
             );
 
         addrs4N++;
@@ -254,8 +256,7 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
                 // O sock_setsockopt usa isso
                 //   sock_bindtoindex_locked(()
                 // que aí dá nisso
-                if (addr->metric)
-                    sock->sk->sk_bound_dev_if = addr->itfc;
+                sock->sk->sk_bound_dev_if = addr->itfc;
                 //if (sk->sk_prot->rehash)
                     //sk->sk_prot->rehash(sk);
                 // TODO: FIXME: HANDLE FAILURE HERE
@@ -272,7 +273,7 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
             ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[1] = rdtsc() + protocol; // (+ jiffies) << 32
             // INSERE O PREFIXO
             igw_prefixize6(sockAddr.sin6_addr.in6_u.u6_addr8, addr->prefix, addr->prefixLen);
-            if (addr->metric)
+            if (addr->itfc)
                 sock->sk->sk_bound_dev_if = addr->itfc;
             igw_release();
             dbg("BOUND IPV6 SOCKET TO FAMILY %d %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X\n",
@@ -381,8 +382,8 @@ static int igw_init (void) {
     //
     lo = ITFC_INDEX_INVALID;
 
-    addrs4N = 0;
-    addrs6N = 0;
+    addrs4Last = 0;
+    addrs6Last = 0;
 
     igw_acquire();
     igw_release();
@@ -406,13 +407,13 @@ static void igw_exit (void) {
     // REMOVE THE HOOKS
     sock_create_USE = sock_create_REAL;
 
-    unregister_netdevice_notifier(&notifyItfcs);
-    unregister_inetaddr_notifier(&notifyAddrs4);
-    unregister_inet6addr_notifier(&notifyAddrs6);
-
     // MEMORY BARRIER
     igw_acquire();
     igw_release();
+
+    unregister_netdevice_notifier(&notifyItfcs);
+    unregister_inetaddr_notifier(&notifyAddrs4);
+    unregister_inet6addr_notifier(&notifyAddrs6);
 
     printk("IGW: UNLOADED.\n");
 }
