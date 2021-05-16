@@ -234,75 +234,112 @@ static void igw_prefixize6 (u8* ip, const u8* prefix, uint prefixLen) {
 }
 
 #define BASE 1000
+
 #define ADDR4_RANDOM (BASE + ADDRS4_N)
 #define ADDR6_RANDOM (BASE + ADDRS6_N)
 
-static int igw_sock_create (int family, int type, int protocol, struct socket **res) {
+static int igw_sock_create4 (int family, int type, uint i, struct socket **res) {
 
-    if (protocol < BASE)
-        return sock_create_REAL(family, type, protocol, res);
-
-    uint i = protocol;
-
-    if (family == AF_INET) {
-        if ((i -= BASE) >= ADDRS4_N) {
-            uint count = addrs4N;
-            while (count--) {
-                if (addrs4[i %= addrs4N].addr)
-                    break;
-                i++;
-            }
+    if ((i -= BASE) >= ADDRS4_N) {
+        uint count = addrs4N;
+        while (count--) {
+            if (addrs4[i %= addrs4N].addr)
+                break;
+            i++;
         }
-        if (!(i < addrs4N && addrs4[i].addr))
-            return -EINVAL;
-    } else {
-        if ((i -= BASE) >= ADDRS6_N)
-            i %= addrs6N;
-        if (!(i < addrs6N && addrs6[i].addr))
-            return -EINVAL;
     }
 
-    const int ret = sock_create_REAL(family, type, 0, res);
+    if (!(i < addrs4N && addrs4[i].addr))
+        return -EINVAL;
+
+    const int ret = sock_create_REAL(AF_INET, SOCK_STREAM, 0, res);
 
     // TODO: FIXME: O CERTO SERIA CONSIDERAR family, POIS O protocol É DENTRO DO DOMÍNIO DELE
     // MAS ASSUMINDO QUE NENHUM OUTRO DOMÍNIO TEM PROTOCOLOS >= QUE O DO IP
     if (ret >= 0) {
+
         struct socket* sock = *res;
+
         igw_acquire();
-        if (family == AF_INET) {
-            if (addrs4N) {
-                Addr4* addr = &addrs4[i];
-                // TODO: FIXME: HANDLE PREFIX LEN
-                struct sockaddr_in sockAddr = { .sin_family = AF_INET, .sin_port = 0, .sin_addr = { .s_addr = addr->prefix } };
-                // O sock_setsockopt usa isso
-                //   sock_bindtoindex_locked(()
-                // que aí dá nisso
-                if (addr->itfc)
-                    sock->sk->sk_bound_dev_if = addr->itfc;
-                //if (sk->sk_prot->rehash)
-                    //sk->sk_prot->rehash(sk);
-                // TODO: FIXME: HANDLE FAILURE HERE
-                igw_release();
-                (void)inet_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
-            } else
-                igw_release();
-        } elif (addrs6N) {
-            Addr6* addr = &addrs6[i % addrs6N];
-            struct sockaddr_in6 sockAddr = { .sin6_family = AF_INET6, .sin6_port = 0, .sin6_flowinfo = 0, .sin6_scope_id = 0 };
-            // GERA UM ALEATÓRIO
-            ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[0] = rdtsc() + jiffies;
-            ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[1] = rdtsc() + i;
-            // INSERE O PREFIXO
-            igw_prefixize6(sockAddr.sin6_addr.in6_u.u6_addr8, addr->prefix, addr->prefixLen);
+
+        if (addrs4N) {
+
+            Addr4* addr = &addrs4[i];
+            // TODO: FIXME: HANDLE PREFIX LEN
+            struct sockaddr_in sockAddr = { .sin_family = AF_INET, .sin_port = 0, .sin_addr = { .s_addr = addr->prefix } };
+
+            // O sock_setsockopt usa isso
+            //   sock_bindtoindex_locked(()
+            // que aí dá nisso
             if (addr->itfc)
                 sock->sk->sk_bound_dev_if = addr->itfc;
+            //if (sk->sk_prot->rehash)
+                //sk->sk_prot->rehash(sk);
+
+            // TODO: FIXME: HANDLE FAILURE HERE
             igw_release();
-            (void)inet6_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
+
+            (void)inet_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
         } else
             igw_release();
     }
 
     return ret;
+}
+
+static int igw_sock_create6 (int family, int type, uint i, struct socket **res) {
+
+    if ((i -= BASE) >= ADDRS6_N) {
+        uint count = addrs6N;
+        while (count--) {
+            if (addrs6[i %= addrs6N].addr)
+                break;
+            i++;
+        }
+    }
+
+    if (!(i < addrs6N && addrs6[i].addr))
+        return -EINVAL;
+
+    const int ret = sock_create_REAL(AF_INET6, SOCK_STREAM, 0, res);
+
+    if (ret >= 0) {
+
+        struct socket* sock = *res;
+
+        igw_acquire();
+
+        if (addrs6N) {
+
+            Addr6* addr = &addrs6[i % addrs6N];
+
+            struct sockaddr_in6 sockAddr = { .sin6_family = AF_INET6, .sin6_port = 0, .sin6_flowinfo = 0, .sin6_scope_id = 0 };
+
+            // GERA UM ALEATÓRIO
+            ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[0] = rdtsc() + jiffies;
+            ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[1] = rdtsc() + i;
+
+            // INSERE O PREFIXO
+            igw_prefixize6(sockAddr.sin6_addr.in6_u.u6_addr8, addr->prefix, addr->prefixLen);
+
+            if (addr->itfc)
+                sock->sk->sk_bound_dev_if = addr->itfc;
+
+            igw_release();
+
+            (void)inet6_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
+        } else
+            igw_release();
+    }
+}
+
+static int igw_sock_create (int family, int type, int protocol, struct socket **res) {
+
+    return (
+        (protocol < BASE) ?     sock_create_REAL :
+        (protocol == AF_INET) ? igw_sock_create4 :
+                                igw_sock_create6
+        ) (family, type, protocol, res);
 }
 
 // TODO: FIXME: E OS DEMAIS EVENTOS?
