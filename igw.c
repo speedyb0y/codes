@@ -194,7 +194,7 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
                         addr6Last = addrs6;
                     addr6++;
                 }
-                addrs6N = addr6Last;
+                addrs6N = addr6Last - addrs6;
             }
         }
     }
