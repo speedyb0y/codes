@@ -185,7 +185,7 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
         if (addr6->addr == addr) {
             addr6->addr = 0;
 
-            if (addrs6N == &addrs6[addr->ifa_rt_priority]) {
+            if (addrs6N == addr->ifa_rt_priority) {
                 Addr6* addr6 = addrs6;
                 Addr6* addr6Last = addrs6;
                 uint remaining = addrs6N;
@@ -194,7 +194,7 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
                         addr6Last = addrs6;
                     addr6++;
                 }
-                addrs6N = lastSet;
+                addrs6N = addr6Last;
             }
         }
     }
@@ -210,7 +210,7 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
         if (addr4->addr == addr) {
             addr4->addr = 0;
 
-            if (addrs4N == &addrs4[addr->ifa_rt_priority]) { // TODO: USAR UMA ESPÉCIE DE LINKED LIST
+            if (addrs4N == addr->ifa_rt_priority) { // TODO: USAR UMA ESPÉCIE DE LINKED LIST
                 Addr4* addr4 = addrs4;
                 Addr4* addr4Last = addrs4;
                 uint remaining = addrs4N;
@@ -219,7 +219,7 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
                         addr4Last = addrs4;
                     addr4++;
                 }
-                addrs4N = lastSet;
+                addrs4N = addr4Last - addrs4;
             }
         }
     }
