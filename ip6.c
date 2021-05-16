@@ -194,7 +194,7 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
                 uint remaining = addrs6N;
                 while (remaining--) {
                     if (addr6->addr)
-                        addr6Last = addrs6;
+                        addr6Last = addr6;
                     addr6++;
                 }
                 addrs6N = addr6Last - addrs6;
@@ -219,7 +219,7 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
                 uint remaining = addrs4N;
                 while (remaining--) {
                     if (addr4->addr)
-                        addr4Last = addrs4;
+                        addr4Last = addr4;
                     addr4++;
                 }
                 addrs4N = addr4Last - addrs4;
