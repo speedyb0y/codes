@@ -83,6 +83,8 @@ extern int (*sock_create_USE) (int family, int type, int protocol, struct socket
 #define FMTIPV4(addr) ((addr) & 0xFF), (((addr) >> 8) & 0xFF), (((addr) >> 16) & 0xFF), (((addr) >> 24) & 0xFF)
 #endif
 
+#define dbg(...) ({ })
+
 typedef struct Addr4 Addr4;
 typedef struct Addr6 Addr6;
 
@@ -149,9 +151,9 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
             addr6->until     = addr->prefered_lft;
             addr6->itfc      = addr->idev->dev->flags & IFF_LOOPBACK ? 0 : addr->idev->dev->ifindex;
             addr6->prefixLen = addr->prefix_len;
-            memcpy(addr6->prefix, addr->addr.in6_u.u6_addr8, 16);
+     memcpy(addr6->prefix,     addr->addr.in6_u.u6_addr8, 16);
 
-            printk("IGW: ADDR6 ADD #%u ITFC %u %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n",
+            dbg("IGW: ADDR6 ADD #%u ITFC %u %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n",
          (uint)(addr6 - addrs6),
                 addr6->itfc,
         FMTIPV6(addr6->prefix),
@@ -193,7 +195,7 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
         if (addr6->addr == addr) {
             addr6->addr = NULL;
 
-            printk("IGW: ADDR6 DEL #%u ITFC %u %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n",
+            dbg("IGW: ADDR6 DEL #%u ITFC %u %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n",
          (uint)(addr6 - addrs6),
                 addr6->itfc,
         FMTIPV6(addr6->prefix),
@@ -313,7 +315,7 @@ static int igw_sock_create6 (uint i, struct socket **res) {
     } else
         i -= BASE_FIX;
 
-    printk("SOCK6 #%u HAS %u", i, addrs6N);
+    dbg("SOCK6 #%u (HAS %u)", i, addrs6N);
 
     if (!(i < addrs6N && addrs6[i].addr))
         return -EINVAL;
