@@ -102,10 +102,8 @@ struct Addr6 {
     u8 prefix[16];
 };
 
-#define BASE 1024
-
-#define ADDR4_RANDOM 2048
-#define ADDR6_RANDOM 2048
+#define BASE_FIX 1024
+#define BASE_ITER 2048
 
 #define ITFC_INDEX_INVALID 0xFFFFF
 
@@ -152,6 +150,13 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
             addr6->itfc      = addr->idev->dev->flags & IFF_LOOPBACK ? 0 : addr->idev->dev->ifindex;
             addr6->prefixLen = addr->prefix_len;
             memcpy(addr6->prefix, addr->addr.in6_u.u6_addr8, 16);
+
+            printk("IGW: ADDR6 ADD #%u ITFC %u %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n",
+         (uint)(addr6 - addrs6),
+                addr6->itfc,
+        FMTIPV6(addr6->prefix),
+                addr6->prefixLen
+                );
         }
     }
 }
@@ -187,6 +192,13 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
         if (addr6->addr == addr) {
             addr6->addr = NULL;
+
+            printk("IGW: ADDR6 DEL #%u ITFC %u %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n",
+         (uint)(addr6 - addrs6),
+                addr6->itfc,
+        FMTIPV6(addr6->prefix),
+                addr6->prefixLen
+                );
 
             if (addrs6N == addr->rt_priority) {
                 Addr6* addr6 = addrs6;
@@ -242,7 +254,7 @@ static void igw_prefixize6 (u8* ip, const u8* prefix, uint prefixLen) {
 
 static int igw_sock_create4 (uint i, struct socket **res) {
 
-    if (i >= ADDR4_RANDOM) {
+    if (i >= BASE_ITER) {
         uint count = addrs4N;
         while (count--) {
             if (addrs4[i %= addrs4N].addr)
@@ -250,7 +262,7 @@ static int igw_sock_create4 (uint i, struct socket **res) {
             i++;
         }
     } else
-        i -= BASE;
+        i -= BASE_FIX;
 
     if (!(i < addrs4N && addrs4[i].addr))
         return -EINVAL;
@@ -291,7 +303,7 @@ static int igw_sock_create4 (uint i, struct socket **res) {
 
 static int igw_sock_create6 (uint i, struct socket **res) {
 
-    if (i >= ADDR6_RANDOM) {
+    if (i >= BASE_ITER) {
         uint count = addrs6N;
         while (count--) {
             if (addrs6[i %= addrs6N].addr)
@@ -299,7 +311,9 @@ static int igw_sock_create6 (uint i, struct socket **res) {
             i++;
         }
     } else
-        i -= BASE;
+        i -= BASE_FIX;
+
+    printk("SOCK6 #%u HAS %u", i, addrs6N);
 
     if (!(i < addrs6N && addrs6[i].addr))
         return -EINVAL;
@@ -340,7 +354,7 @@ static int igw_sock_create6 (uint i, struct socket **res) {
 
 static int igw_sock_create (int family, int type, int protocol, struct socket **res) {
 
-    if (protocol < BASE)
+    if (protocol < BASE_FIX)
         return sock_create_REAL(family, type, protocol, res);
 
     if (family == AF_INET)
