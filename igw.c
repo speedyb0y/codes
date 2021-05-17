@@ -102,15 +102,15 @@ struct Addr6 {
     u8 prefix[16];
 };
 
-#define ADDRS4_N 512
-#define ADDRS6_N 64
+#define BASE 1024
 
-#define BASE 1000
-
-#define ADDR4_RANDOM (BASE + ADDRS4_N)
-#define ADDR6_RANDOM (BASE + ADDRS6_N)
+#define ADDR4_RANDOM 2048
+#define ADDR6_RANDOM 2048
 
 #define ITFC_INDEX_INVALID 0xFFFFF
+
+#define ADDRS4_N 512
+#define ADDRS6_N 64
 
 static uint addrs4N;
 static uint addrs6N;
@@ -242,14 +242,15 @@ static void igw_prefixize6 (u8* ip, const u8* prefix, uint prefixLen) {
 
 static int igw_sock_create4 (uint i, struct socket **res) {
 
-    if ((i -= BASE) >= ADDRS4_N) {
+    if (i >= ADDR4_RANDOM) {
         uint count = addrs4N;
         while (count--) {
             if (addrs4[i %= addrs4N].addr)
                 break;
             i++;
         }
-    }
+    } else
+        i -= BASE;
 
     if (!(i < addrs4N && addrs4[i].addr))
         return -EINVAL;
@@ -290,14 +291,15 @@ static int igw_sock_create4 (uint i, struct socket **res) {
 
 static int igw_sock_create6 (uint i, struct socket **res) {
 
-    if ((i -= BASE) >= ADDRS6_N) {
+    if (i >= ADDR6_RANDOM) {
         uint count = addrs6N;
         while (count--) {
             if (addrs6[i %= addrs6N].addr)
                 break;
             i++;
         }
-    }
+    } else
+        i -= BASE;
 
     if (!(i < addrs6N && addrs6[i].addr))
         return -EINVAL;
