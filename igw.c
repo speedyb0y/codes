@@ -51,6 +51,8 @@ typedef struct sk_buff sk_buff;
 extern int sock_create_REAL (int family, int type, int protocol, struct socket **res);
 extern int (*sock_create_USE) (int family, int type, int protocol, struct socket **res);
 
+#define ITFC_INVALID 0xFFFF
+
 typedef struct Addr4 Addr4;
 typedef struct Addr6 Addr6;
 
@@ -130,8 +132,8 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
         if (addr6->ip[0] == ((u64*)addr->addr.in6_u.u6_addr8)[0] &&
             addr6->ip[1] == ((u64*)addr->addr.in6_u.u6_addr8)[1] &&
-            addr6->itfc  ==        addr->ifa_dev->dev->ifindex)
-            addr4->itfc = ITFC_INVALID;
+            addr6->itfc  ==        addr->idev->dev->ifindex)
+            addr6->itfc = ITFC_INVALID;
     }
 }
 
@@ -154,11 +156,13 @@ static int igw_sock_create4 (uint i, struct socket **res) {
 
     Addr4* addr4;
 
-    if ((i -= PROTO_ADDR) >= ADDRS6_N) {
-        uint count = ADDRS6_N;
-        while ((addr4 = &addrs4[i++ %= ADDRS6_N])->itfc == ITFC_INVALID);
+    if ((i -= PROTO_ADDR) >= ADDRS4_N) {
+        uint count = ADDRS4_N;
+        while ((addr4 = &addrs4[i %= ADDRS4_N])->itfc == ITFC_INVALID) {
             if (--count == 0)
                 goto BAD;
+            i++;
+        }
     } elif ((addr4 = &addrs4[i])->itfc == ITFC_INVALID)
         goto BAD;
 
@@ -168,7 +172,7 @@ static int igw_sock_create4 (uint i, struct socket **res) {
 
     igw_release();
 
-    const int ret = sock_create_REAL(AF_INET4, SOCK_STREAM, 0, res);
+    const int ret = sock_create_REAL(AF_INET, SOCK_STREAM, 0, res);
 
     if (ret >= 0) {
         // BIND TO INTERFACE
@@ -194,9 +198,11 @@ static int igw_sock_create6 (uint i, struct socket **res) {
 
     if ((i -= PROTO_ADDR) >= ADDRS6_N) {
         uint count = ADDRS6_N;
-        while ((addr6 = &addrs6[i++ %= ADDRS6_N])->itfc == ITFC_INVALID);
+        while ((addr6 = &addrs6[i %= ADDRS6_N])->itfc == ITFC_INVALID) {
             if (--count == 0)
                 goto BAD;
+            i++;
+        }
     } elif ((addr6 = &addrs6[i])->itfc == ITFC_INVALID)
         goto BAD;
 
