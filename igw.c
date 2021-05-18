@@ -55,14 +55,12 @@ typedef struct Addr4 Addr4;
 typedef struct Addr6 Addr6;
 
 struct Addr4 {
-    u64 lft;
     u32 itfc;
     u32 ip;
 };
 
 struct Addr6 {
-    u64 lft:50;
-    u64 itfc:14;
+    u64 itfc;
     u64 ip[2];
 };
 
@@ -99,8 +97,7 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
         Addr6* const addr6 = &addrs6[addr->rt_priority - 1];
 
-        if (addr6->lft == 0) {
-            addr6->lft   = addr->prefered_lft;
+        if (addr6->itfc == ITFC_INVALID) {
             addr6->itfc  = addr->idev->dev->flags & IFF_LOOPBACK ? 0 : addr->idev->dev->ifindex;
             addr6->ip[0] = ((u64*)addr->addr.in6_u.u6_addr8)[0];
             addr6->ip[1] = ((u64*)addr->addr.in6_u.u6_addr8)[1];
@@ -117,8 +114,7 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
         Addr4* const addr4 = &addrs4[addr->ifa_rt_priority - 1];
 
-        if (addr4->lft == 0) {
-            addr4->lft  = addr->ifa_preferred_lft; // Expiry is at tstamp + HZ * lft
+        if (addr4->itfc == ITFC_INVALID) {
             addr4->itfc = addr->ifa_dev->dev->ifindex;
             addr4->ip   = addr->ifa_address;
         }
@@ -135,7 +131,7 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
         if (addr6->ip[0] == ((u64*)addr->addr.in6_u.u6_addr8)[0] &&
             addr6->ip[1] == ((u64*)addr->addr.in6_u.u6_addr8)[1] &&
             addr6->itfc == addr->ifa_dev->dev->ifindex)
-            addr6->lft = 0;
+            addr4->itfc = ITFC_INVALID;
     }
 }
 
@@ -148,7 +144,7 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
 
         if (addr4->ip == addr->ifa_address &&
             addr4->itfc == addr->ifa_dev->dev->ifindex)
-            addr4->lft = 0;
+            addr4->itfc = ITFC_INVALID;
     }
 }
 
@@ -160,10 +156,10 @@ static int igw_sock_create4 (uint i, struct socket **res) {
 
     if ((i -= PROTO_ADDR) >= ADDRS6_N) {
         uint count = ADDRS6_N;
-        while (!(addr4 = &addrs4[i++ %= ADDRS6_N])->lft);
+        while ((addr4 = &addrs4[i++ %= ADDRS6_N])->itfc == ITFC_INVALID);
             if (--count == 0)
                 goto BAD;
-    } elif (!(addr4 = &addrs4[i])->lft)
+    } elif ((addr4 = &addrs4[i])->itfc == ITFC_INVALID)
         goto BAD;
 
     // COPIA
@@ -198,10 +194,10 @@ static int igw_sock_create6 (uint i, struct socket **res) {
 
     if ((i -= PROTO_ADDR) >= ADDRS6_N) {
         uint count = ADDRS6_N;
-        while (!(addr6 = &addrs6[i++ %= ADDRS6_N])->lft);
+        while ((addr6 = &addrs6[i++ %= ADDRS6_N])->itfc == ITFC_INVALID);
             if (--count == 0)
                 goto BAD;
-    } elif (!(addr6 = &addrs6[i])->lft)
+    } elif ((addr6 = &addrs6[i])->itfc == ITFC_INVALID)
         goto BAD;
 
     // COPIA
