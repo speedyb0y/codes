@@ -357,6 +357,10 @@ static void igw_exit (void) {
 
     // MEMORY BARRIER
     igw_acquire();
+
+    memset(addrs6, 0xFF, sizeof(addrs6));
+    memset(addrs4, 0xFF, sizeof(addrs4));
+
     igw_release();
 
     unregister_netdevice_notifier(&notifyItfcs);
