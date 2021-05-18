@@ -57,13 +57,13 @@ typedef struct Addr6 Addr6;
 struct Addr4 {
     u64 lft;
     u32 itfc;
-    u32 prefix;
+    u32 ip;
 };
 
 struct Addr6 {
     u64 lft:50;
     u64 itfc:14;
-    u64 prefix[2];
+    u64 ip[2];
 };
 
 #define PROTO_ADDR 1024
@@ -100,10 +100,10 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
         Addr6* const addr6 = &addrs6[addr->rt_priority - 1];
 
         if (addr6->lft == 0) {
-            addr6->lft       = addr->prefered_lft;
-            addr6->itfc      = addr->idev->dev->flags & IFF_LOOPBACK ? 0 : addr->idev->dev->ifindex;
-            addr6->prefix[0] = ((u64*)addr->addr.in6_u.u6_addr8)[0];
-            addr6->prefix[1] = ((u64*)addr->addr.in6_u.u6_addr8)[1];
+            addr6->lft   = addr->prefered_lft;
+            addr6->itfc  = addr->idev->dev->flags & IFF_LOOPBACK ? 0 : addr->idev->dev->ifindex;
+            addr6->ip[0] = ((u64*)addr->addr.in6_u.u6_addr8)[0];
+            addr6->ip[1] = ((u64*)addr->addr.in6_u.u6_addr8)[1];
         }
     }
 }
@@ -118,9 +118,9 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
         Addr4* const addr4 = &addrs4[addr->ifa_rt_priority - 1];
 
         if (addr4->lft == 0) {
-            addr4->lft       = addr->ifa_preferred_lft; // Expiry is at tstamp + HZ * lft
-            addr4->itfc      = addr->ifa_dev->dev->ifindex;
-            addr4->prefix    = addr->ifa_address;
+            addr4->lft  = addr->ifa_preferred_lft; // Expiry is at tstamp + HZ * lft
+            addr4->itfc = addr->ifa_dev->dev->ifindex;
+            addr4->ip   = addr->ifa_address;
         }
     }
 }
@@ -132,9 +132,9 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
         Addr6* const addr6 = &addrs6[addr->rt_priority - 1];
 
-        if (addr6->prefix[0] == addr-> &&
-            addr6->prefix[1] == &&
-            addr6->itfc == addr->)
+        if (addr6->ip[0] == ((u64*)addr->addr.in6_u.u6_addr8)[0] &&
+            addr6->ip[1] == ((u64*)addr->addr.in6_u.u6_addr8)[1] &&
+            addr6->itfc == addr->ifa_dev->dev->ifindex)
             addr6->lft = 0;
     }
 }
@@ -146,13 +146,12 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
 
         Addr4* const addr4 = &addrs4[addr->ifa_rt_priority - 1];
 
-        if (addr4->addr == addr)
+        if (addr4->ip == addr->ifa_address &&
+            addr4->itfc == addr->ifa_dev->dev->ifindex)
             addr4->lft = 0;
     }
 }
 
-//TCP_QUICKACK
-//TCP_NODELAY
 static int igw_sock_create4 (uint i, struct socket **res) {
 
     igw_acquire();
@@ -169,7 +168,7 @@ static int igw_sock_create4 (uint i, struct socket **res) {
 
     // COPIA
     const uint itfc = addr4->itfc;
-    const u64 sockAddr[4] = {  0x0000000000000200ULL,  addr4->prefix }; // struct sockaddr_in
+    const u64 sockAddr[4] = { 0x0000000000000200ULL, addr4->ip }; // struct sockaddr_in
 
     igw_release();
 
@@ -180,6 +179,7 @@ static int igw_sock_create4 (uint i, struct socket **res) {
         (*res)->sk->sk_bound_dev_if = itfc;
         // BIND TO ADDRESS
         (void)inet6_bind((*res), (struct sockaddr*)sockAddr, sizeof(struct sockaddr_in));
+        // TCP_NODELAY
     }
 
     return ret;
@@ -209,8 +209,8 @@ static int igw_sock_create6 (uint i, struct socket **res) {
 
     const u64 sockAddr[4] = { // struct sockaddr_in6
         0x0000000000000A00ULL, // family port flowinfo
-        addr6->prefix[0],
-        addr6->prefix[1],
+        addr6->ip[0],
+        addr6->ip[1],
         0 // scope ID
         };
 
@@ -377,6 +377,3 @@ MODULE_DESCRIPTION("A simple example Linux module.");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("igw");
 MODULE_VERSION("0.01");
-
-//tem que salvar a interface e a flag de BIND separadamente
-//ou nao vai identificar os endereços para retirar :S
