@@ -84,6 +84,7 @@ extern int (*sock_create_USE) (int family, int type, int protocol, struct socket
 #endif
 
 #define dbg(...) ({ })
+//#define dbg(fmt,...) printk(fmt, ##__VA_ARGS__)
 
 typedef struct Addr4 Addr4;
 typedef struct Addr6 Addr6;
@@ -97,11 +98,9 @@ struct Addr4 {
 };
 
 struct Addr6 {
-    struct inet6_ifaddr* addr;
-    u64 until;
-    u16 itfc;
-    u16 prefixLen;
-    u8 prefix[16];
+    u64 prefix[2];
+    u64 itfc:14;
+    u64 lft:50;
 };
 
 #define BASE_FIX 1024
@@ -256,6 +255,8 @@ static void igw_prefixize6 (u8* ip, const u8* prefix, uint prefixLen) {
 
 static int igw_sock_create4 (uint i, struct socket **res) {
 
+    dbg("SOCK4 CALLED #%u (HAS %u)", i, addrs4N);
+
     if (i >= BASE_ITER) {
         uint count = addrs4N;
         while (count--) {
@@ -266,8 +267,12 @@ static int igw_sock_create4 (uint i, struct socket **res) {
     } else
         i -= BASE_FIX;
 
+    dbg("SOCK4 TREATED #%u (HAS %u)", i, addrs4N);
+
     if (!(i < addrs4N && addrs4[i].addr))
         return -EINVAL;
+
+    dbg("SOCK4 PASS #%u (HAS %u)", i, addrs4N);
 
     const int ret = sock_create_REAL(AF_INET, SOCK_STREAM, 0, res);
 
@@ -295,6 +300,9 @@ static int igw_sock_create4 (uint i, struct socket **res) {
             // TODO: FIXME: HANDLE FAILURE HERE
             igw_release();
 
+            //TCP_QUICKACK
+            //TCP_NODELAY
+
             (void)inet_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
         } else
             igw_release();
@@ -305,53 +313,46 @@ static int igw_sock_create4 (uint i, struct socket **res) {
 
 static int igw_sock_create6 (uint i, struct socket **res) {
 
-    if (i >= BASE_ITER) {
+    igw_acquire();
+
+    Addr6* addr6;
+
+    if ((i -= BASE_FIX) >= ADDRS6_N) {
         uint count = addrs6N;
-        while (count--) {
-            if (addrs6[i %= addrs6N].addr)
-                break;
-            i++;
-        }
-    } else
-        i -= BASE_FIX;
+        do {
+            if (count-- == 0)
+                goto BAD;
+        } while (!(addr6 = &addrs6[i++ %= addrs6N])->lft);
+    } elif (!(addr6 = &addrs6[i])->lft)
+        goto BAD;
 
-    dbg("SOCK6 #%u (HAS %u)", i, addrs6N);
+    // COPIA
+    const uint itfc = addr6->itfc;
 
-    if (!(i < addrs6N && addrs6[i].addr))
-        return -EINVAL;
+    const u64 sockAddr[4] = { // struct sockaddr_in6
+        0x0000000000000A00ULL, // family port flowinfo
+        addr6->prefix[0],
+        addr6->prefix[1],
+        0 // scope ID
+        };
+
+    igw_release();
 
     const int ret = sock_create_REAL(AF_INET6, SOCK_STREAM, 0, res);
 
     if (ret >= 0) {
-
-        struct socket* sock = *res;
-
-        igw_acquire();
-
-        if (addrs6N) {
-
-            Addr6* addr = &addrs6[i % addrs6N];
-
-            struct sockaddr_in6 sockAddr = { .sin6_family = AF_INET6, .sin6_port = 0, .sin6_flowinfo = 0, .sin6_scope_id = 0 };
-
-            // GERA UM ALEATÓRIO
-            ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[0] = rdtsc() + jiffies;
-            ((u64*)sockAddr.sin6_addr.in6_u.u6_addr8)[1] = rdtsc() + i;
-
-            // INSERE O PREFIXO
-            igw_prefixize6(sockAddr.sin6_addr.in6_u.u6_addr8, addr->prefix, addr->prefixLen);
-
-            if (addr->itfc)
-                sock->sk->sk_bound_dev_if = addr->itfc;
-
-            igw_release();
-
-            (void)inet6_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
-        } else
-            igw_release();
+        // BIND TO INTERFACE
+        (*res)->sk->sk_bound_dev_if = itfc;
+        // BIND TO ADDRESS
+        (void)inet6_bind((*res), (struct sockaddr*)sockAddr, sizeof(struct sockaddr_in6));
     }
 
     return ret;
+
+BAD:
+    igw_release();
+
+    return -EINVAL;
 }
 
 static int igw_sock_create (int family, int type, int protocol, struct socket **res) {
@@ -359,6 +360,7 @@ static int igw_sock_create (int family, int type, int protocol, struct socket **
     if (protocol < BASE_FIX)
         return sock_create_REAL(family, type, protocol, res);
 
+    // TODO: FIXME: suportar UDP ? :S
     if (family == AF_INET)
         return igw_sock_create4(protocol, res);
 
@@ -499,3 +501,7 @@ MODULE_DESCRIPTION("A simple example Linux module.");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("igw");
 MODULE_VERSION("0.01");
+
+
+//tem que salvar a interface e a flag de BIND separadamente
+//ou nao vai identificar os endereços para retirar :S
