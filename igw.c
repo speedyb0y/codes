@@ -73,19 +73,6 @@ typedef struct sk_buff sk_buff;
 extern int sock_create_REAL (int family, int type, int protocol, struct socket **res);
 extern int (*sock_create_USE) (int family, int type, int protocol, struct socket **res);
 
-#define FMTIPV6(addr) \
-    (addr)[0], (addr)[1], (addr)[2], (addr)[3], (addr)[4], (addr)[5], (addr)[6], (addr)[7], \
-    (addr)[8], (addr)[9], (addr)[10], (addr)[11], (addr)[12], (addr)[13], (addr)[14], (addr)[15]
-
-#if 0
-#define FMTIPV4(addr) (((addr) >> 24) & 0xFF), (((addr) >> 16) & 0xFF), (((addr) >> 8) & 0xFF), ((addr) & 0xFF)
-#else
-#define FMTIPV4(addr) ((addr) & 0xFF), (((addr) >> 8) & 0xFF), (((addr) >> 16) & 0xFF), (((addr) >> 24) & 0xFF)
-#endif
-
-#define dbg(...) ({ })
-//#define dbg(fmt,...) printk(fmt, ##__VA_ARGS__)
-
 typedef struct Addr4 Addr4;
 typedef struct Addr6 Addr6;
 
@@ -102,14 +89,10 @@ struct Addr6 {
 };
 
 #define BASE_FIX 1024
-#define BASE_ITER 2048
-
-#define ITFC_INDEX_INVALID 0xFFFFF
 
 #define ADDRS4_N 512
-#define ADDRS6_N 64
+#define ADDRS6_N 128
 
-static uint addrs4N;
 static struct Addr4 addrs4[ADDRS4_N];
 static struct Addr6 addrs6[ADDRS6_N];
 
