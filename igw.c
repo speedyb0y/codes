@@ -42,23 +42,6 @@ if again
 #include <net/addrconf.h>
 #include <uapi/linux/in6.h>
 
-/*
-net/socket.c
-static sock_create_REAL
-int (*sock_create_USE)(int family, int type, int protocol, struct socket **res) = NULL;
-int sock_create (int family, int type, int protocol, struct socket **res) {
-    return (sock_create_USE ? : sock_create_REAL) (family, type, protocol, res);
-}
-EXPORT_SYMBOL(sock_create);
-EXPORT_SYMBOL(sock_create_USE);
-
-include/linux/net.h
-sock_create() -> extern (*sock_create)
-
-CUIDADO COM O sock_create_lite!!!
-
-*/
-
 typedef __u8 u8;
 typedef __u16 u16;
 typedef __u32 u32;
@@ -70,6 +53,7 @@ typedef struct notifier_block notifier_block;
 typedef struct net_device net_device;
 typedef struct sk_buff sk_buff;
 
+// CUIDADO COM O sock_create_lite!!!
 extern int sock_create_REAL (int family, int type, int protocol, struct socket **res);
 extern int (*sock_create_USE) (int family, int type, int protocol, struct socket **res);
 
