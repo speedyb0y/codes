@@ -272,18 +272,13 @@ static int igw_addrs6_notify (notifier_block *nb, unsigned long action, void* ad
 
 static int igw_itfcs_notify (notifier_block *nb, unsigned long action, void *data) {
 
-    net_device* dev;
+    igw_acquire();
+
+    net_device* const dev = netdev_notifier_info_to_dev(data);
     struct in_ifaddr* addr4;
     struct inet6_ifaddr* addr6;
 
-    igw_acquire();
-
-    dev = netdev_notifier_info_to_dev(data);
-
-    printk("IGW: DEVICE %s INDEX %d ACTION %s FLAGS 0x%08X OP STATE 0x%X\n",
-        dev->name, dev->ifindex, netdev_cmd_to_name(action), dev->flags, (unsigned)dev->operstate);
-
-    // INTERFACE LOOPBACK NUNCA TEM EVENTO DOWN/UNREGISTER
+    // CONSIDERA QUE INTERFACE LOOPBACK NUNCA TEM EVENTO DOWN/UNREGISTER
     if ((dev->flags & IFF_LOOPBACK) || ((action == NETDEV_CHANGE || action == NETDEV_UP) && (dev->flags & IFF_UP) && (dev->operstate == IF_OPER_UP))) {
         addr4 = rtnl_dereference(dev->ip_ptr->ifa_list);
         while (addr4) { igw_addrs4_add(addr4);
