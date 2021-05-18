@@ -51,7 +51,7 @@ typedef struct sk_buff sk_buff;
 extern int sock_create_REAL (int family, int type, int protocol, struct socket **res);
 extern int (*sock_create_USE) (int family, int type, int protocol, struct socket **res);
 
-#define ITFC_INVALID 0xFFFF
+#define ITFC_INVALID 0xFFFFU
 
 typedef struct Addr4 Addr4;
 typedef struct Addr6 Addr6;
@@ -99,7 +99,7 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
 
         Addr6* const addr6 = &addrs6[addr->rt_priority - 1];
 
-        if (addr6->itfc == ITFC_INVALID) {
+        if (addr6->itfc >= ITFC_INVALID) {
             addr6->itfc  =        addr->idev->dev->flags & IFF_LOOPBACK ? 0 : addr->idev->dev->ifindex;
             addr6->ip[0] = ((u64*)addr->addr.in6_u.u6_addr8)[0];
             addr6->ip[1] = ((u64*)addr->addr.in6_u.u6_addr8)[1];
@@ -116,7 +116,7 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
 
         Addr4* const addr4 = &addrs4[addr->ifa_rt_priority - 1];
 
-        if (addr4->itfc == ITFC_INVALID) {
+        if (addr4->itfc >= ITFC_INVALID) {
             addr4->itfc = addr->ifa_dev->dev->ifindex;
             addr4->ip   = addr->ifa_address;
         }
@@ -158,12 +158,12 @@ static int igw_sock_create4 (uint i, struct socket **res) {
 
     if ((i -= PROTO_ADDR) >= ADDRS4_N) {
         uint count = ADDRS4_N;
-        while ((addr4 = &addrs4[i %= ADDRS4_N])->itfc == ITFC_INVALID) {
+        while ((addr4 = &addrs4[i %= ADDRS4_N])->itfc >= ITFC_INVALID) {
             if (--count == 0)
                 goto BAD;
             i++;
         }
-    } elif ((addr4 = &addrs4[i])->itfc == ITFC_INVALID)
+    } elif ((addr4 = &addrs4[i])->itfc >= ITFC_INVALID)
         goto BAD;
 
     // COPIA
@@ -198,12 +198,12 @@ static int igw_sock_create6 (uint i, struct socket **res) {
 
     if ((i -= PROTO_ADDR) >= ADDRS6_N) {
         uint count = ADDRS6_N;
-        while ((addr6 = &addrs6[i %= ADDRS6_N])->itfc == ITFC_INVALID) {
+        while ((addr6 = &addrs6[i %= ADDRS6_N])->itfc >= ITFC_INVALID) {
             if (--count == 0)
                 goto BAD;
             i++;
         }
-    } elif ((addr6 = &addrs6[i])->itfc == ITFC_INVALID)
+    } elif ((addr6 = &addrs6[i])->itfc >= ITFC_INVALID)
         goto BAD;
 
     // COPIA
@@ -330,8 +330,8 @@ static int igw_init (void) {
 
     lock = 0;
 
-    memset(addrs6, 0, sizeof(addrs6));
-    memset(addrs4, 0, sizeof(addrs4));
+    memset(addrs6, 0xFF, sizeof(addrs6));
+    memset(addrs4, 0xFF, sizeof(addrs4));
 
     igw_acquire();
     igw_release();
