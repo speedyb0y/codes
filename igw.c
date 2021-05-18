@@ -98,7 +98,7 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
         Addr6* const addr6 = &addrs6[addr->rt_priority - 1];
 
         if (addr6->itfc == ITFC_INVALID) {
-            addr6->itfc  = addr->idev->dev->flags & IFF_LOOPBACK ? 0 : addr->idev->dev->ifindex;
+            addr6->itfc  =        addr->idev->dev->flags & IFF_LOOPBACK ? 0 : addr->idev->dev->ifindex;
             addr6->ip[0] = ((u64*)addr->addr.in6_u.u6_addr8)[0];
             addr6->ip[1] = ((u64*)addr->addr.in6_u.u6_addr8)[1];
         }
@@ -130,7 +130,7 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
         if (addr6->ip[0] == ((u64*)addr->addr.in6_u.u6_addr8)[0] &&
             addr6->ip[1] == ((u64*)addr->addr.in6_u.u6_addr8)[1] &&
-            addr6->itfc == addr->ifa_dev->dev->ifindex)
+            addr6->itfc  ==        addr->ifa_dev->dev->ifindex)
             addr4->itfc = ITFC_INVALID;
     }
 }
@@ -142,7 +142,7 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
 
         Addr4* const addr4 = &addrs4[addr->ifa_rt_priority - 1];
 
-        if (addr4->ip == addr->ifa_address &&
+        if (addr4->ip   == addr->ifa_address &&
             addr4->itfc == addr->ifa_dev->dev->ifindex)
             addr4->itfc = ITFC_INVALID;
     }
