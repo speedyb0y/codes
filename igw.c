@@ -312,20 +312,18 @@ static int igw_itfcs_notify (notifier_block *nb, unsigned long action, void *dat
     // INTERFACE LOOPBACK NUNCA TEM EVENTO DOWN/UNREGISTER
     if ((dev->flags & IFF_LOOPBACK) || ((action == NETDEV_CHANGE || action == NETDEV_UP) && (dev->flags & IFF_UP) && (dev->operstate == IF_OPER_UP))) {
         addr4 = rtnl_dereference(dev->ip_ptr->ifa_list);
-        while (addr4) {
-            igw_addrs4_add((struct in_ifaddr*)addr4);
+        while (addr4) { igw_addrs4_add(addr4);
             addr4 = rtnl_dereference(addr4->ifa_next);
         }
         list_for_each_entry(addr6, &dev->ip6_ptr->addr_list, if_list)
-            igw_addrs6_add((struct inet6_ifaddr*)addr6);
+            igw_addrs6_add(addr6);
     } else {
         addr4 = rtnl_dereference(dev->ip_ptr->ifa_list);
-        while (addr4) {
-            igw_addrs4_del((struct in_ifaddr*)addr4);
+        while (addr4) { igw_addrs4_del(addr4);
             addr4 = rtnl_dereference(addr4->ifa_next);
         }
         list_for_each_entry(addr6, &dev->ip6_ptr->addr_list, if_list)
-            igw_addrs6_del((struct inet6_ifaddr*)addr6);
+            igw_addrs6_del(addr6);
     }
 
     igw_release();
