@@ -164,7 +164,7 @@ static int igw_sock_create4 (uint i, struct socket **res) {
 
     // COPIA
     const uint itfc = addr4->itfc;
-    const u64 sockAddr[4] = { 0x0000000000000200ULL, addr4->ip }; // struct sockaddr_in
+    const u32 sockAddr[2] = { 0x00000200U, addr4->ip }; // struct sockaddr_in
 
     igw_release();
 
