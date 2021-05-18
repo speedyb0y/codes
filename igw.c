@@ -90,17 +90,15 @@ typedef struct Addr4 Addr4;
 typedef struct Addr6 Addr6;
 
 struct Addr4 {
-    struct in_ifaddr* addr;
-    u64 until;
-    u16 itfc;
-    u16 prefixLen;
+    u64 lft;
+    u32 itfc;
     u32 prefix;
 };
 
 struct Addr6 {
-    u64 prefix[2];
-    u64 itfc:14;
     u64 lft:50;
+    u64 itfc:14;
+    u64 prefix[2];
 };
 
 #define BASE_FIX 1024
@@ -112,8 +110,6 @@ struct Addr6 {
 #define ADDRS6_N 64
 
 static uint addrs4N;
-static uint addrs6N;
-
 static struct Addr4 addrs4[ADDRS4_N];
 static struct Addr6 addrs6[ADDRS6_N];
 
@@ -140,24 +136,13 @@ static void igw_addrs6_add (struct inet6_ifaddr* const addr) {
         addr->idev &&
         addr->idev->dev) {
 
-        if (addrs6N < addr->rt_priority)
-            addrs6N = addr->rt_priority;
-
         Addr6* const addr6 = &addrs6[addr->rt_priority - 1];
 
-        if (addr6->addr == NULL) {
-            addr6->addr      = addr;
-            addr6->until     = addr->prefered_lft;
+        if (addr6->lft == 0) {
+            addr6->lft       = addr->prefered_lft;
             addr6->itfc      = addr->idev->dev->flags & IFF_LOOPBACK ? 0 : addr->idev->dev->ifindex;
-            addr6->prefixLen = addr->prefix_len;
-     memcpy(addr6->prefix,     addr->addr.in6_u.u6_addr8, 16);
-
-            dbg("IGW: ADDR6 ADD #%u ITFC %u %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n",
-         (uint)(addr6 - addrs6),
-                addr6->itfc,
-        FMTIPV6(addr6->prefix),
-                addr6->prefixLen
-                );
+            addr6->prefix[0] = ((u64*)addr->addr.in6_u.u6_addr8)[0];
+            addr6->prefix[1] = ((u64*)addr->addr.in6_u.u6_addr8)[1];
         }
     }
 }
@@ -169,16 +154,11 @@ static void igw_addrs4_add (struct in_ifaddr* const addr) {
         addr->ifa_dev &&
         addr->ifa_dev->dev) {
 
-        if (addrs4N < addr->ifa_rt_priority)
-            addrs4N = addr->ifa_rt_priority;
-
         Addr4* const addr4 = &addrs4[addr->ifa_rt_priority - 1];
 
-        if (addr4->addr == NULL) {
-            addr4->addr      = addr;
-            addr4->until     = addr->ifa_preferred_lft; // Expiry is at tstamp + HZ * lft
+        if (addr4->lft == 0) {
+            addr4->lft       = addr->ifa_preferred_lft; // Expiry is at tstamp + HZ * lft
             addr4->itfc      = addr->ifa_dev->dev->ifindex;
-            addr4->prefixLen = addr->ifa_prefixlen;// PODERIA USAR O ifa_mask, CONTANDO OS BITS
             addr4->prefix    = addr->ifa_address;
         }
     }
@@ -191,28 +171,10 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
         Addr6* const addr6 = &addrs6[addr->rt_priority - 1];
 
-        if (addr6->addr == addr) {
-            addr6->addr = NULL;
-
-            dbg("IGW: ADDR6 DEL #%u ITFC %u %02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X:%02X%02X/%u\n",
-         (uint)(addr6 - addrs6),
-                addr6->itfc,
-        FMTIPV6(addr6->prefix),
-                addr6->prefixLen
-                );
-
-            if (addrs6N == addr->rt_priority) {
-                Addr6* addr6 = addrs6;
-                Addr6* addr6Last = addrs6;
-                uint remaining = addrs6N;
-                while (remaining--) {
-                    if (addr6->addr)
-                        addr6Last = addr6;
-                    addr6++;
-                }
-                addrs6N = addr6Last - addrs6;
-            }
-        }
+        if (addr6->prefix[0] == addr-> &&
+            addr6->prefix[1] == &&
+            addr6->itfc == addr->)
+            addr6->lft = 0;
     }
 }
 
@@ -223,92 +185,48 @@ static void igw_addrs4_del (const struct in_ifaddr* const addr) {
 
         Addr4* const addr4 = &addrs4[addr->ifa_rt_priority - 1];
 
-        if (addr4->addr == addr) {
-            addr4->addr = NULL;
-
-            if (addrs4N == addr->ifa_rt_priority) { // TODO: USAR UMA ESPÉCIE DE LINKED LIST
-                Addr4* addr4 = addrs4;
-                Addr4* addr4Last = addrs4;
-                uint remaining = addrs4N;
-                while (remaining--) {
-                    if (addr4->addr)
-                        addr4Last = addr4;
-                    addr4++;
-                }
-                addrs4N = addr4Last - addrs4;
-            }
-        }
+        if (addr4->addr == addr)
+            addr4->lft = 0;
     }
 }
 
-// OVERWRITE O IP COM O PREFIXO
-static void igw_prefixize6 (u8* ip, const u8* prefix, uint prefixLen) {
-
-    while (prefixLen) {
-        const uint amount = (prefixLen < 8) ? prefixLen : 8;
-        const uint mask = (0xFFU << (8 - amount)) & 0xFFU;
-        *ip &= ~mask;
-        *ip++ |= *prefix++ & mask;
-        prefixLen -= amount;
-    }
-}
-
+//TCP_QUICKACK
+//TCP_NODELAY
 static int igw_sock_create4 (uint i, struct socket **res) {
 
-    dbg("SOCK4 CALLED #%u (HAS %u)", i, addrs4N);
+    igw_acquire();
 
-    if (i >= BASE_ITER) {
-        uint count = addrs4N;
-        while (count--) {
-            if (addrs4[i %= addrs4N].addr)
-                break;
-            i++;
-        }
-    } else
-        i -= BASE_FIX;
+    Addr4* addr4;
 
-    dbg("SOCK4 TREATED #%u (HAS %u)", i, addrs4N);
+    if ((i -= BASE_FIX) >= ADDRS6_N) {
+        uint count = ADDRS6_N;
+        while (!(addr4 = &addrs4[i++ %= ADDRS6_N])->lft);
+            if (--count == 0)
+                goto BAD;
+    } elif (!(addr4 = &addrs4[i])->lft)
+        goto BAD;
 
-    if (!(i < addrs4N && addrs4[i].addr))
-        return -EINVAL;
+    // COPIA
+    const uint itfc = addr4->itfc;
+    const u64 sockAddr[4] = {  0x0000000000000200ULL,  addr4->prefix }; // struct sockaddr_in
 
-    dbg("SOCK4 PASS #%u (HAS %u)", i, addrs4N);
+    igw_release();
 
-    const int ret = sock_create_REAL(AF_INET, SOCK_STREAM, 0, res);
+    const int ret = sock_create_REAL(AF_INET4, SOCK_STREAM, 0, res);
 
-    // TODO: FIXME: O CERTO SERIA CONSIDERAR family, POIS O protocol É DENTRO DO DOMÍNIO DELE
-    // MAS ASSUMINDO QUE NENHUM OUTRO DOMÍNIO TEM PROTOCOLOS >= QUE O DO IP
     if (ret >= 0) {
-
-        struct socket* sock = *res;
-
-        igw_acquire();
-
-        if (addrs4N) {
-
-            Addr4* addr = &addrs4[i];
-            // TODO: FIXME: HANDLE PREFIX LEN
-            struct sockaddr_in sockAddr = { .sin_family = AF_INET, .sin_port = 0, .sin_addr = { .s_addr = addr->prefix } };
-
-            // O sock_setsockopt usa isso
-            //   sock_bindtoindex_locked(()
-            // que aí dá nisso
-            sock->sk->sk_bound_dev_if = addr->itfc;
-            //if (sk->sk_prot->rehash)
-                //sk->sk_prot->rehash(sk);
-
-            // TODO: FIXME: HANDLE FAILURE HERE
-            igw_release();
-
-            //TCP_QUICKACK
-            //TCP_NODELAY
-
-            (void)inet_bind((*res), (struct sockaddr*)&sockAddr, sizeof(sockAddr));
-        } else
-            igw_release();
+        // BIND TO INTERFACE
+        (*res)->sk->sk_bound_dev_if = itfc;
+        // BIND TO ADDRESS
+        (void)inet6_bind((*res), (struct sockaddr*)sockAddr, sizeof(struct sockaddr_in));
     }
 
     return ret;
+
+BAD:
+    igw_release();
+
+    return -EINVAL;
 }
 
 static int igw_sock_create6 (uint i, struct socket **res) {
@@ -318,11 +236,10 @@ static int igw_sock_create6 (uint i, struct socket **res) {
     Addr6* addr6;
 
     if ((i -= BASE_FIX) >= ADDRS6_N) {
-        uint count = addrs6N;
-        do {
-            if (count-- == 0)
+        uint count = ADDRS6_N;
+        while (!(addr6 = &addrs6[i++ %= ADDRS6_N])->lft);
+            if (--count == 0)
                 goto BAD;
-        } while (!(addr6 = &addrs6[i++ %= addrs6N])->lft);
     } elif (!(addr6 = &addrs6[i])->lft)
         goto BAD;
 
@@ -457,8 +374,8 @@ static int igw_init (void) {
 
     lock = 0;
 
-    addrs4N = 0; memset(addrs6, 0, sizeof(addrs6));
-    addrs6N = 0; memset(addrs4, 0, sizeof(addrs4));
+    memset(addrs6, 0, sizeof(addrs6));
+    memset(addrs4, 0, sizeof(addrs4));
 
     igw_acquire();
     igw_release();
