@@ -2,12 +2,6 @@
     endereço adicionado
         -> adiciona ele
 
-    IPV6
-        bind_non_local 1
-
-    IPV4
-        bind_non_local 0
-
     TENTARRETIRAR O MODULO DUAS VEZEs:
     - A PRIMEIRA SÓ RETIRA OS HOOKS
     - A OUTRA SAI DE VEZ
@@ -72,7 +66,7 @@ struct Addr6 {
     u64 prefix[2];
 };
 
-#define BASE_FIX 1024
+#define PROTO_ADDR 1024
 
 #define ADDRS4_N 512
 #define ADDRS6_N 128
@@ -165,7 +159,7 @@ static int igw_sock_create4 (uint i, struct socket **res) {
 
     Addr4* addr4;
 
-    if ((i -= BASE_FIX) >= ADDRS6_N) {
+    if ((i -= PROTO_ADDR) >= ADDRS6_N) {
         uint count = ADDRS6_N;
         while (!(addr4 = &addrs4[i++ %= ADDRS6_N])->lft);
             if (--count == 0)
@@ -202,7 +196,7 @@ static int igw_sock_create6 (uint i, struct socket **res) {
 
     Addr6* addr6;
 
-    if ((i -= BASE_FIX) >= ADDRS6_N) {
+    if ((i -= PROTO_ADDR) >= ADDRS6_N) {
         uint count = ADDRS6_N;
         while (!(addr6 = &addrs6[i++ %= ADDRS6_N])->lft);
             if (--count == 0)
@@ -239,16 +233,16 @@ BAD:
     return -EINVAL;
 }
 
-static int igw_sock_create (int family, int type, int protocol, struct socket **res) {
+static int igw_sock_create (int fam, int type, int proto, struct socket **res) {
 
-    if (protocol < BASE_FIX)
-        return sock_create_REAL(family, type, protocol, res);
+    if (proto < PROTO_ADDR)
+        return sock_create_REAL(fam, type, proto, res);
 
     // TODO: FIXME: suportar UDP ? :S
-    if (family == AF_INET)
-        return igw_sock_create4(protocol, res);
+    if (fam == AF_INET)
+        return igw_sock_create4(proto, res);
 
-    return igw_sock_create6(protocol, res);
+    return igw_sock_create6(proto, res);
 }
 
 // TODO: FIXME: E OS DEMAIS EVENTOS?
@@ -383,7 +377,6 @@ MODULE_DESCRIPTION("A simple example Linux module.");
 MODULE_LICENSE("GPL");
 MODULE_ALIAS("igw");
 MODULE_VERSION("0.01");
-
 
 //tem que salvar a interface e a flag de BIND separadamente
 //ou nao vai identificar os endereços para retirar :S
