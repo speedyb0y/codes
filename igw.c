@@ -178,7 +178,7 @@ static int igw_sock_create4 (uint i, struct socket **res) {
         // BIND TO INTERFACE
         (*res)->sk->sk_bound_dev_if = itfc;
         // BIND TO ADDRESS
-        (void)inet6_bind((*res), (struct sockaddr*)sockAddr, sizeof(struct sockaddr_in));
+        (void)inet_bind((*res), (struct sockaddr*)sockAddr, sizeof(struct sockaddr_in));
         // TCP_NODELAY
     }
 
