@@ -168,7 +168,8 @@ static int igw_sock_create4 (uint i, struct socket **res) {
 
     // COPIA
     const uint itfc = addr4->itfc;
-    const u32 sockAddr[2] = { 0x00000200U, addr4->ip }; // struct sockaddr_in
+
+    const struct sockaddr_in sockAddr = { .sin_family = AF_INET, .sin_port = 0, .sin_addr.s_addr = addr4->ip };
 
     igw_release();
 
@@ -178,7 +179,7 @@ static int igw_sock_create4 (uint i, struct socket **res) {
         // BIND TO INTERFACE
         (*res)->sk->sk_bound_dev_if = itfc;
         // BIND TO ADDRESS
-        (void)inet_bind((*res), (struct sockaddr*)sockAddr, sizeof(struct sockaddr_in));
+        (void)inet_bind((*res), (struct sockaddr*)&sockAddr, sizeof(struct sockaddr_in));
         // TCP_NODELAY
     }
 
@@ -209,12 +210,13 @@ static int igw_sock_create6 (uint i, struct socket **res) {
     // COPIA
     const uint itfc = addr6->itfc;
 
-    const u64 sockAddr[4] = { // struct sockaddr_in6
-        0x0000000000000A00ULL, // family port flowinfo
-        addr6->ip[0],
-        addr6->ip[1],
-        0 // scope ID
-        };
+    struct sockaddr_in6 sockAddr;
+           sockAddr.sin6_family           = AF_INET6;
+           sockAddr.sin6_port             = 0;
+           sockAddr.sin6_flowinfo         = 0;
+           sockAddr.sin6_scope_id         = 0;
+    ((u64*)sockAddr.sin6_addr.s6_addr)[0] = addr6->ip[0];
+    ((u64*)sockAddr.sin6_addr.s6_addr)[1] = addr6->ip[1];
 
     igw_release();
 
@@ -224,7 +226,7 @@ static int igw_sock_create6 (uint i, struct socket **res) {
         // BIND TO INTERFACE
         (*res)->sk->sk_bound_dev_if = itfc;
         // BIND TO ADDRESS
-        (void)inet6_bind((*res), (struct sockaddr*)sockAddr, sizeof(struct sockaddr_in6));
+        (void)inet6_bind((*res), (struct sockaddr*)&sockAddr, sizeof(struct sockaddr_in6));
     }
 
     return ret;
