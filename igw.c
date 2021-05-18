@@ -132,7 +132,7 @@ static void igw_addrs6_del (const struct inet6_ifaddr* const addr) {
 
         if (addr6->ip[0] == ((u64*)addr->addr.in6_u.u6_addr8)[0] &&
             addr6->ip[1] == ((u64*)addr->addr.in6_u.u6_addr8)[1] &&
-            addr6->itfc  ==        addr->idev->dev->ifindex)
+            addr6->itfc  ==        addr->idev->dev->flags & IFF_LOOPBACK ? 0 : addr->idev->dev->ifindex)
             addr6->itfc = ITFC_INVALID;
     }
 }
